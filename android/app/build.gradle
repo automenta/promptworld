@@ -86,7 +86,7 @@ dependencies {
 task copyWebAssets(type: Copy) {
     from '../../src' // Relative path from android/app/ to the root src/ folder
     into 'src/main/assets'
-    include '*.html', '*.css', '*.js', '*.json'
+    include '*.html', '*.css', '*.js', '*.json', 'sw.js' // Added sw.js
     include 'assets/**' // This will copy the src/assets/ directory into android/app/src/main/assets/assets/
     // To avoid nesting 'assets' inside 'assets', we can copy contents directly
     // However, for simplicity and to match the manifest icon paths like 'assets/icons/icon.png',

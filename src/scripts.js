@@ -1747,6 +1747,19 @@ Focus on interpreting the spatial relationships and descriptive content of the i
         }
     });
 
+    // Service Worker Registration
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js') // Path relative to index.html / origin
+                .then(registration => {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                })
+                .catch(error => {
+                    console.log('ServiceWorker registration failed: ', error);
+                });
+        });
+    }
+
 });
 
 // Further application logic will be added here:
