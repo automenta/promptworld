@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PromptWorld</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
 </head>
 <body>
     <header>
@@ -14,7 +15,7 @@
     <main>
         <section id="home-screen">
             <h2>Projects</h2>
-            <ul id="project-list">
+            <ul id="project-list" aria-label="List of projects">
                 <!-- Projects will be listed here -->
             </ul>
             <button id="new-project-btn">New Project</button>
@@ -22,11 +23,11 @@
         </section>
 
         <section id="editor-screen" style="display: none;">
-            <h2>Editor</h2>
-            <div id="d-editor-container" style="border: 1px solid #ccc; min-height: 300px; margin-bottom: 1rem;">
+            <h2 id="editor-heading">Editor</h2>
+            <div id="d-editor-container" style="border: 1px solid #ccc; min-height: 300px; margin-bottom: 1rem;" aria-roledescription="Interactive 3D editor" aria-labelledby="editor-heading">
                 <!-- 3D Images will be rendered here -->
             </div>
-            <input type="file" id="image-upload-input" accept="image/*" style="display: none;">
+            <input type="file" id="image-upload-input" accept="image/*" style="display: none;" aria-label="Image upload input">
             <button id="import-image-btn">Import Image</button>
             <button id="toggle-view-mode-btn" style="margin-left: 10px;">Switch to Navigation Mode</button>
             <div id="current-project-images">
@@ -36,17 +37,17 @@
             <h3>AI Processing</h3>
             <button id="process-selected-ai-btn">Process Selected Images with AI</button>
             <div id="ai-image-selection-container">
-                <h4>Select Images for AI Processing:</h4>
-                <ul id="ai-selectable-image-list">
+                <h4 id="ai-selection-heading">Select Images for AI Processing:</h4>
+                <ul id="ai-selectable-image-list" aria-labelledby="ai-selection-heading">
                     <!-- Selectable images will be listed here by scripts.js -->
                 </ul>
             </div>
-            <div id="ai-status-indicator" style="margin-top: 10px;">
+            <div id="ai-status-indicator" style="margin-top: 10px;" aria-live="polite">
                 <!-- AI processing status will be shown here -->
             </div>
             <div id="ai-results-container" style="margin-top: 10px;">
-                <h4>AI Generated Descriptions:</h4>
-                <ul id="ai-descriptions-list">
+                <h4 id="ai-descriptions-heading">AI Generated Descriptions:</h4>
+                <ul id="ai-descriptions-list" aria-labelledby="ai-descriptions-heading">
                     <!-- Descriptions will be shown here -->
                 </ul>
             </div>
@@ -54,16 +55,16 @@
             <button id="export-project-json-btn" style="margin-top: 10px;">Export Project (JSON)</button>
             <button id="export-view-png-btn" style="margin-left: 10px; margin-top: 10px;">Export View (PNG)</button>
             <button id="compare-project-btn" style="margin-left: 10px; margin-top: 10px;">Compare with JSON...</button>
-            <input type="file" id="compare-file-input" accept=".json,.promptworld.json" style="display: none;" />
+            <input type="file" id="compare-file-input" accept=".json,.promptworld.json" style="display: none;" aria-label="Compare project file input" />
             <button id="go-to-prompt-screen-btn" style="margin-left: 10px; margin-top: 10px;">Prompt World Model</button>
             <button id="back-to-home-btn" style="margin-left: 10px; margin-top: 10px;">Back to Home</button>
         </section>
 
         <!-- Modal for Comparison Results -->
-        <div id="compare-modal" class="modal" style="display: none;">
+        <div id="compare-modal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="compare-modal-heading">
             <div class="modal-content">
-                <span class="close-btn" id="close-compare-modal-btn">&times;</span>
-                <h2>Comparison Results</h2>
+                <button class="close-btn" id="close-compare-modal-btn" aria-label="Close dialog">&times;</button>
+                <h2 id="compare-modal-heading">Comparison Results</h2>
                 <div id="compare-results-area">
                     <!-- Results will be populated here by scripts.js -->
                 </div>
@@ -75,7 +76,7 @@
             <p>Ask questions or give commands based on the current 3D model and its descriptions.</p>
             <textarea id="user-prompt-input" rows="4" style="width: 95%; margin-bottom: 10px;" placeholder="e.g., 'List all objects on the left side', 'What is near the red car?', 'Simulate removing the large tree.'"></textarea>
             <button id="submit-prompt-btn">Submit Prompt</button>
-            <div id="prompt-response-area" style="margin-top: 15px; padding: 10px; border: 1px solid #eee; min-height: 50px; background-color: #f9f9f9;">
+            <div id="prompt-response-area" style="margin-top: 15px; padding: 10px; border: 1px solid #eee; min-height: 50px; background-color: #f9f9f9;" aria-live="polite">
                 <!-- AI responses will appear here -->
                 <p>AI response will appear here...</p>
             </div>
@@ -87,9 +88,9 @@
             <h2>Settings</h2>
             <div>
                 <label for="api-key-input">Gemini API Key:</label>
-                <input type="password" id="api-key-input" name="api-key-input" style="width: 80%; margin-bottom: 10px;">
+                <input type="password" id="api-key-input" name="api-key-input" style="width: 80%; margin-bottom: 10px;" aria-describedby="api-key-status">
                 <button id="save-api-key-btn">Save API Key</button>
-                <p id="api-key-status" style="margin-top: 10px;"></p>
+                <p id="api-key-status" style="margin-top: 10px;" aria-live="polite"></p>
             </div>
             <hr>
             <button id="back-to-home-from-settings-btn">Back to Home</button>

@@ -83,7 +83,7 @@ let currentProject = null; // Holds the currently loaded project
 document.addEventListener('DOMContentLoaded', () => {
     const homeScreen = document.getElementById('home-screen');
     const editorScreen = document.getElementById('editor-screen');
-    const editorHeader = editorScreen.querySelector('h2');
+    const editorHeader = editorScreen.querySelector('h2'); // This is <h2 id="editor-heading">Editor</h2>
     const dEditorContainer = document.getElementById('d-editor-container');
     const settingsScreen = document.getElementById('settings-screen');
     const promptScreen = document.getElementById('prompt-screen'); // New Prompt Screen
@@ -150,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (exportViewPngBtn) {
-        exportViewPngBtn.addEventListener('click', () => {
+        exportViewPngBtn.addEventListener('click', async () => { // Made async for spinner
             if (!currentProject) {
                 alert("No project loaded to export a view.");
                 return;
@@ -160,10 +160,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            // Create a temporary status element for the spinner
+            const exportPngStatus = document.createElement('p');
+            exportPngStatus.id = 'export-png-status';
+            // Insert it after the button, or at a suitable place
+            exportViewPngBtn.parentNode.insertBefore(exportPngStatus, exportViewPngBtn.nextSibling);
+            startSpinner(exportPngStatus, "Exporting PNG view...");
+            exportViewPngBtn.disabled = true;
+
+            // Brief delay to allow spinner to render before potentially blocking alert
+            await new Promise(resolve => setTimeout(resolve, 50));
+
             alert("Note: Screenshot functionality is experimental and may not fully represent the 3D view due to CSS3D complexities when rendering to a 2D canvas without external libraries. It will attempt to capture a 2D projection.");
 
             const imageHostWrapper = document.getElementById('image-host-wrapper');
             if (!imageHostWrapper) {
+                stopSpinner(exportPngStatus, "Error: Image host wrapper not found.");
+                exportPngStatus.style.color = 'red';
+                setTimeout(() => exportPngStatus.remove(), 4000);
+                exportViewPngBtn.disabled = false;
                 alert("Image host wrapper not found.");
                 return;
             }
@@ -291,19 +306,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 a.click();
                 document.body.removeChild(a);
                 console.log("View exported as PNG:", a.download);
+                stopSpinner(exportPngStatus, "PNG view exported successfully.");
+                setTimeout(() => exportPngStatus.remove(), 3000);
             }).catch(error => {
                 console.error("Error drawing images to canvas:", error);
+                stopSpinner(exportPngStatus, "Error exporting PNG. See console.");
+                exportPngStatus.style.color = 'red';
+                setTimeout(() => exportPngStatus.remove(), 4000);
                 alert("Failed to export view as PNG. Some images might not have loaded correctly for capture. See console.");
+            }).finally(() => {
+                exportViewPngBtn.disabled = false;
             });
         });
     }
 
     if (exportProjectJsonBtn) {
-        exportProjectJsonBtn.addEventListener('click', () => {
+        exportProjectJsonBtn.addEventListener('click', async () => { // Made async for spinner
             if (!currentProject) {
                 alert("No project loaded to export.");
                 return;
             }
+
+            // Create a temporary status element for the spinner
+            const exportJsonStatus = document.createElement('p');
+            exportJsonStatus.id = 'export-json-status';
+            exportProjectJsonBtn.parentNode.insertBefore(exportJsonStatus, exportProjectJsonBtn.nextSibling);
+            startSpinner(exportJsonStatus, "Exporting project JSON...");
+            exportProjectJsonBtn.disabled = true;
+
+            // Brief delay to allow spinner to render before potentially blocking stringify
+            await new Promise(resolve => setTimeout(resolve, 50));
 
             try {
                 // Sanitize or select fields for export if necessary.
@@ -323,9 +355,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 console.log("Project exported as JSON:", a.download);
+                stopSpinner(exportJsonStatus, "Project JSON exported successfully.");
+                setTimeout(() => exportJsonStatus.remove(), 3000);
             } catch (error) {
                 console.error("Error exporting project to JSON:", error);
+                stopSpinner(exportJsonStatus, "Error exporting JSON. See console.");
+                exportJsonStatus.style.color = 'red';
+                setTimeout(() => exportJsonStatus.remove(), 4000);
                 alert("Failed to export project as JSON. See console for details.");
+            } finally {
+                exportProjectJsonBtn.disabled = false;
             }
         });
     }
@@ -704,6 +743,17 @@ Focus on interpreting the spatial relationships and descriptive content of the i
         imageUploadInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file && currentProject) {
+                // Show a simple loading indicator, perhaps near the import button or on currentProjectImagesDiv
+                const importStatusIndicator = document.createElement('p');
+                importStatusIndicator.id = 'import-status-indicator';
+                if (currentProjectImagesDiv.parentElement) { // Insert after currentProjectImagesDiv if possible
+                    currentProjectImagesDiv.parentElement.insertBefore(importStatusIndicator, currentProjectImagesDiv.nextSibling);
+                } else { // Fallback: append to editor screen
+                    editorScreen.appendChild(importStatusIndicator);
+                }
+                startSpinner(importStatusIndicator, `Importing ${file.name}`);
+                importImageBtn.disabled = true;
+
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const imageDataUrl = e.target.result;
@@ -713,11 +763,23 @@ Focus on interpreting the spatial relationships and descriptive content of the i
                         console.log("Image added to project and saved.");
                         displayProjectImages();
                         renderImagesIn3DView(); // Re-render 3D view
-                        // Reset file input to allow uploading the same file again if needed
-                        imageUploadInput.value = null;
+                        stopSpinner(importStatusIndicator, `Successfully imported ${file.name}.`);
+                        setTimeout(() => importStatusIndicator.remove(), 3000); // Remove after a few seconds
                     }).catch(err => {
                         console.error("Error saving project after adding image:", err);
+                        stopSpinner(importStatusIndicator, `Error saving after import: ${err.message}`);
+                        importStatusIndicator.style.color = 'red';
+                    }).finally(() => {
+                         imageUploadInput.value = null; // Reset file input
+                         importImageBtn.disabled = false;
                     });
+                };
+                reader.onerror = () => {
+                    console.error("Error reading file:", reader.error);
+                    stopSpinner(importStatusIndicator, `Error reading file: ${reader.error.message}`);
+                    importStatusIndicator.style.color = 'red';
+                    imageUploadInput.value = null;
+                    importImageBtn.disabled = false;
                 };
                 reader.readAsDataURL(file);
             }
@@ -776,10 +838,21 @@ Focus on interpreting the spatial relationships and descriptive content of the i
                     const listItem = document.createElement('li');
                     listItem.textContent = project.name + ` (Created: ${new Date(project.createdAt).toLocaleDateString()})`;
                     listItem.style.cursor = 'pointer'; // Indicate it's clickable
-                    // Add click listener to open project in editor
-                    listItem.addEventListener('click', () => {
+                    listItem.setAttribute('role', 'button');
+                    listItem.setAttribute('tabindex', '0');
+                    listItem.setAttribute('aria-label', `Open project: ${project.name}`);
+
+                    const projectClickHandler = () => {
                         loadProjectIntoEditor(project);
                         showScreen(editorScreen);
+                    };
+
+                    listItem.addEventListener('click', projectClickHandler);
+                    listItem.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault(); // Prevent space from scrolling page
+                            projectClickHandler();
+                        }
                     });
                     projectListUl.appendChild(listItem);
                 });
@@ -844,8 +917,11 @@ Focus on interpreting the spatial relationships and descriptive content of the i
                 const altText = imgNode.description ? `Image: ${imgNode.description.substring(0, 100)}` : `Interactive image ${imgNode.id.substring(0,5)} in the 3D scene`;
                 imgElement.alt = altText;
                 imgElement.setAttribute('aria-label', altText);
-                // Consider role="button" if interactions are primarily click/drag based beyond just being an image
-                // imgElement.setAttribute('role', 'img'); // Default is fine, but can be explicit
+                imgElement.setAttribute('tabindex', '0'); // Make images focusable
+
+                // Default role is img. If it becomes interactive like a button in nav mode:
+                // if (isNavigationMode) imgElement.setAttribute('role', 'button');
+                // For now, focusable and good labels are the priority.
 
                 // Positions are now relative to the wrapper, so use their direct values
                 const x = imgNode.position.x || (index * 20 - (currentProject.images.length * 10));
@@ -1006,11 +1082,14 @@ Focus on interpreting the spatial relationships and descriptive content of the i
             isRotating = true;
             initialMouseX = e.clientX;
             initialRotationY = currentImageNode.rotation.y;
+            selectedImageElement.setAttribute('aria-grabbed', 'true');
         } else if (e.altKey && !e.shiftKey) { // Alt key for Z-axis translation
             isTranslatingZ = true;
             initialMouseYForZ = e.clientY;
             initialPositionZ = currentImageNode.position.z;
+            selectedImageElement.setAttribute('aria-grabbed', 'true');
         } else if (!e.shiftKey && !e.altKey) { // Default: X, Y positioning
+            selectedImageElement.setAttribute('aria-grabbed', 'true');
             const transform = selectedImageElement.style.transform;
             const translateMatch = transform.match(/translate3d\(([^,]+)px, ([^,]+)px, ([^,]+)px\)/);
 
@@ -1073,6 +1152,10 @@ Focus on interpreting the spatial relationships and descriptive content of the i
     }
 
     function onImageMouseUp(e) {
+        if (selectedImageElement) { // Check if it was set before clearing
+            selectedImageElement.setAttribute('aria-grabbed', 'false');
+        }
+
         if (!selectedImageElement || !currentImageNode) {
             document.removeEventListener('mousemove', onImageMouseMove);
             document.removeEventListener('mouseup', onImageMouseUp);
@@ -1080,6 +1163,7 @@ Focus on interpreting the spatial relationships and descriptive content of the i
             isTranslatingZ = false;
             return;
         }
+
 
         if (isRotating) {
             console.log("ImageNode updated (Rotation Y):", currentImageNode.id, "New Y Rot:", currentImageNode.rotation.y);
@@ -1299,6 +1383,7 @@ Focus on interpreting the spatial relationships and descriptive content of the i
             editBtn.textContent = "Edit";
             editBtn.style.marginLeft = "10px";
             editBtn.style.padding = "2px 5px";
+            editBtn.setAttribute('aria-label', `Edit description for image ${imgNode.id.substring(0,5)}`);
             editBtn.onclick = () => {
                 const newDesc = prompt(`Edit description for image ${imgNode.id.substring(0,5)}:`, imgNode.description);
                 if (newDesc !== null && newDesc.trim() !== imgNode.description) {

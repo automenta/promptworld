@@ -16,8 +16,8 @@ The app is designed with a web-first approach using vanilla JavaScript, HTML, an
 
 ## Features
 
-- **Image Import**: Upload photos or extract frames from videos. Supports gallery selection, camera capture (web via getUserMedia, Android via native intents).
-- **3D Editor**: Manually position, rotate, and scale images in a CSS3D-based virtual space using touch/mouse gestures.
+- **Image Import**: Upload photos from your device. (Direct camera capture and video frame extraction are planned future enhancements for the web version; Android wrapper may offer platform-specific capabilities).
+- **3D Editor**: Manually position, rotate, and scale images in a CSS3D-based virtual space using mouse gestures (drag, wheel with modifier keys). Basic touch interactions may work for dragging.
 - **Navigation**: Explore the 3D model with camera controls (pan, zoom, rotate). Includes a dedicated navigation mode that disables editing and shows image descriptions on hover/click.
 - **AI Processing**: Generate detailed textual descriptions of images using the Gemini API (cloud-based).
 - **Prompting**: Query the world model with natural language (e.g., "Describe the layout" or "Simulate removing an object") via Gemini API.
@@ -41,8 +41,8 @@ The app is designed with a web-first approach using vanilla JavaScript, HTML, an
    ```
    git clone https://github.com/yourusername/PromptWorld.git
    ```
-2. Open `index.html` in a modern web browser.
-3. (Optional) Host on a static server (e.g., GitHub Pages) for online access.
+2. Open `src/index.html` in a modern web browser.
+3. (Optional) Host on a static server (e.g., GitHub Pages) for online access. The app includes a `manifest.json` for Progressive Web App (PWA) capabilities, allowing it to be "installed" on supported browsers.
 4. Enter your Gemini API key in the app's settings page to enable AI features.
 
 ### Android Version
@@ -59,8 +59,8 @@ The app is designed with a web-first approach using vanilla JavaScript, HTML, an
 
 ### Quick Start
 1. **Create a Project**: From the home screen, click "New Project" and name it.
-2. **Import Images**: Upload images or videos. For videos, select frame extraction interval.
-3. **Edit in 3D**: Drag images into the 3D space, use gestures to adjust position/rotation/scale.
+2. **Import Images**: Upload image files from your device.
+3. **Edit in 3D**: Drag images into the 3D space; use mouse gestures (Shift+Drag for Y-axis rotation, Alt+Drag for Z-axis movement, Wheel over image for scale) to adjust position/rotation/scale.
 4. **Process with AI**: Select images and generate descriptions (internet required).
 5. **Navigate & Prompt**: Switch to Navigation Mode in the editor to explore and view image descriptions on hover/click, or use the "Prompt World Model" screen with its chat interface to query the model (e.g., "List all furniture").
 6. **Export & Compare**: Save your model as JSON or export the current view as a PNG from the editor. You can also compare your current project with a previously exported JSON project using the "Compare" feature.
@@ -101,9 +101,11 @@ PromptWorld/
 - **Code Style**: Follow vanilla JS best practices; comment heavily.
 
 ### Limitations
-- CSS3D 3D may have rendering quirks on older browsers.
-- AI is cloud-only; no on-device processing.
-- Video frame extraction limited to browser capabilities.
+- CSS3D 3D may have rendering quirks on older browsers or devices.
+- AI processing is cloud-only (requires Gemini API key and internet).
+- Video frame extraction and direct camera capture are not yet implemented in the core web application.
+- Touch-based 3D manipulation beyond basic dragging might be limited; primary interaction is optimized for mouse.
+- PNG export of the 3D view is experimental and may not perfectly capture complex scenes.
 
 ## Contributing
 
