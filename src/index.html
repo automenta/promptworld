@@ -22,7 +22,15 @@
 
         <section id="editor-screen" style="display: none;">
             <h2>Editor</h2>
-            <!-- 3D editor interface will go here -->
+            <div id="d-editor-container" style="border: 1px solid #ccc; min-height: 300px; margin-bottom: 1rem;">
+                <!-- 3D Images will be rendered here -->
+            </div>
+            <input type="file" id="image-upload-input" accept="image/*" style="display: none;">
+            <button id="import-image-btn">Import Image</button>
+            <div id="current-project-images">
+                <!-- Image list/count will be shown here -->
+            </div>
+            <hr>
             <button id="back-to-home-btn">Back to Home</button>
         </section>
 

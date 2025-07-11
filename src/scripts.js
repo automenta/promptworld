@@ -51,10 +51,17 @@ function initDB() {
 }
 
 // Screen Navigation Logic
+let currentProject = null; // Holds the currently loaded project
+
 document.addEventListener('DOMContentLoaded', () => {
     const homeScreen = document.getElementById('home-screen');
     const editorScreen = document.getElementById('editor-screen');
+    const editorHeader = editorScreen.querySelector('h2');
+    const dEditorContainer = document.getElementById('d-editor-container');
     const settingsScreen = document.getElementById('settings-screen'); // Assuming you'll add a settings button
+    const imageUploadInput = document.getElementById('image-upload-input');
+    const importImageBtn = document.getElementById('import-image-btn');
+    const currentProjectImagesDiv = document.getElementById('current-project-images');
 
     const newProjectBtn = document.getElementById('new-project-btn');
     const backToHomeBtn = document.getElementById('back-to-home-btn');
@@ -75,39 +82,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event Listeners for Navigation
     if (newProjectBtn) {
         newProjectBtn.addEventListener('click', () => {
-            // For now, just switch views. Later, implement project creation logic.
             const projectName = prompt("Enter project name:");
             if (projectName) {
                 const newProject = new Project(projectName);
                 saveProject(newProject).then(() => {
                     loadProjects(); // Refresh project list
                     // Optionally, navigate to editor for the new project
-                    // showScreen(editorScreen);
                     // loadProjectIntoEditor(newProject);
+                    // showScreen(editorScreen);
                 });
             }
         });
     }
 
-    // Example: Simulate navigating to editor for the first project if one exists
-    // This is a placeholder. Actual project selection would be more robust.
-    // setTimeout(() => { // Allow DB to load
-    //     if (db) {
-    //         const transaction = db.transaction([PROJECT_STORE_NAME], 'readonly');
-    //         const store = transaction.objectStore(PROJECT_STORE_NAME);
-    //         const getAllRequest = store.getAll();
-    //         getAllRequest.onsuccess = () => {
-    //             if (getAllRequest.result.length > 0) {
-    //                 // For demo, clicking a "project" could lead to editor
-    //                 // This would be part of loadProjects() typically
-    //             }
-    //         }
-    //     }
-    // }, 1000);
-
 
     if (backToHomeBtn) {
         backToHomeBtn.addEventListener('click', () => {
+            currentProject = null; // Clear current project when going home
+            editorHeader.textContent = 'Editor'; // Reset editor title
             showScreen(homeScreen);
         });
     }
@@ -115,6 +107,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add similar listeners for settings if a settings button and screen exist.
     // e.g. if (goToSettingsBtn) { ... }
     // e.g. if (backToHomeFromSettingsBtn) { ... }
+
+    if (importImageBtn) {
+        importImageBtn.addEventListener('click', () => {
+            if (!currentProject) {
+                alert("Please select or create a project first.");
+                return;
+            }
+            imageUploadInput.click(); // Trigger hidden file input
+        });
+    }
+
+    if (imageUploadInput) {
+        imageUploadInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file && currentProject) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const imageDataUrl = e.target.result;
+                    const newImageNode = new ImageNode(imageDataUrl);
+                    currentProject.images.push(newImageNode);
+                    saveProject(currentProject).then(() => {
+                        console.log("Image added to project and saved.");
+                        displayProjectImages();
+                        renderImagesIn3DView(); // Re-render 3D view
+                        // Reset file input to allow uploading the same file again if needed
+                        imageUploadInput.value = null;
+                    }).catch(err => {
+                        console.error("Error saving project after adding image:", err);
+                    });
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
 
     function showScreen(screenElement) {
         homeScreen.style.display = 'none';
@@ -124,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
         screenElement.style.display = 'block';
     }
 
-    // Placeholder for Project CRUD operations
+    // Project CRUD operations
     function saveProject(project) {
         return new Promise((resolve, reject) => {
             if (!db) {
@@ -134,10 +160,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const transaction = db.transaction([PROJECT_STORE_NAME], 'readwrite');
             const store = transaction.objectStore(PROJECT_STORE_NAME);
-            const request = store.add(project); // or .put(project) to update if exists
+            const request = store.put(project); // Use put to allow updates
 
             request.onsuccess = () => {
-                console.log("Project saved:", project.name);
+                console.log("Project saved/updated:", project.name);
                 resolve();
             };
             request.onerror = (event) => {
@@ -166,12 +192,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 projects.forEach(project => {
                     const listItem = document.createElement('li');
                     listItem.textContent = project.name + ` (Created: ${new Date(project.createdAt).toLocaleDateString()})`;
+                    listItem.style.cursor = 'pointer'; // Indicate it's clickable
                     // Add click listener to open project in editor
                     listItem.addEventListener('click', () => {
-                        // For now, log. Later, navigate to editor with this project.
-                        console.log("Selected project:", project.name);
-                        // showScreen(editorScreen);
-                        // loadProjectIntoEditor(project);
+                        loadProjectIntoEditor(project);
+                        showScreen(editorScreen);
                     });
                     projectListUl.appendChild(listItem);
                 });
@@ -183,12 +208,67 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Placeholder for loading a specific project into the editor view
-    // function loadProjectIntoEditor(project) {
-    //     console.log("Loading project into editor:", project.name);
-    //     // Here you would populate the editor screen with the project's data
-    //     // For example, display its images in the 3D space.
-    // }
+    function loadProjectIntoEditor(project) {
+        currentProject = project;
+        console.log("Loading project into editor:", project.name);
+        editorHeader.textContent = `Editor: ${project.name}`;
+        displayProjectImages(); // Display images for the loaded project
+        renderImagesIn3DView(); // Render images in 3D view
+    }
+
+    function renderImagesIn3DView() {
+        if (!dEditorContainer) return;
+        dEditorContainer.innerHTML = ''; // Clear previous images
+
+        if (currentProject && currentProject.images) {
+            currentProject.images.forEach((imgNode, index) => {
+                const imgElement = document.createElement('img');
+                imgElement.src = imgNode.imageDataUrl;
+                imgElement.id = imgNode.id;
+                // Apply default transformations from ImageNode, with a slight offset for new images
+                // For newly added images without explicit positions, provide a default cascade
+                const x = imgNode.position.x || (index * 20 - (currentProject.images.length * 10)); // Simple cascade
+                const y = imgNode.position.y || 0;
+                const z = imgNode.position.z || (index * -10); // Slightly behind the previous
+                const rotX = imgNode.rotation.x || 0;
+                const rotY = imgNode.rotation.y || 0;
+                const rotZ = imgNode.rotation.z || 0;
+                const scale = imgNode.scale || 1;
+
+                imgElement.style.transform = `translate3d(${x}px, ${y}px, ${z}px) rotateX(${rotX}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg) scale(${scale})`;
+                dEditorContainer.appendChild(imgElement);
+            });
+        }
+    }
+
+    function displayProjectImages() {
+        if (!currentProjectImagesDiv) return;
+        if (!currentProject) {
+            currentProjectImagesDiv.innerHTML = "";
+            return;
+        }
+
+        currentProjectImagesDiv.innerHTML = `<h3>Images (${currentProject.images.length})</h3>`;
+        if (currentProject.images.length === 0) {
+            currentProjectImagesDiv.innerHTML += "<p>No images imported yet. Click 'Import Image'.</p>";
+        } else {
+            const ul = document.createElement('ul');
+            currentProject.images.forEach((imgNode, index) => {
+                const li = document.createElement('li');
+                // Display a small thumbnail and image name/ID
+                const imgElement = document.createElement('img');
+                imgElement.src = imgNode.imageDataUrl;
+                imgElement.style.width = "50px";
+                imgElement.style.height = "50px";
+                imgElement.style.objectFit = "cover";
+                imgElement.style.marginRight = "10px";
+                li.appendChild(imgElement);
+                li.appendChild(document.createTextNode(`Image ${index + 1} (ID: ${imgNode.id.substring(0,5)}...)`));
+                ul.appendChild(li);
+            });
+            currentProjectImagesDiv.appendChild(ul);
+        }
+    }
 
 });
 

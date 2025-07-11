@@ -83,3 +83,25 @@ footer {
         margin-top: 0.5rem;
     }
 }
+
+/* 3D Editor Styles */
+#d-editor-container {
+    position: relative; /* For absolute positioning of children if needed */
+    perspective: 1000px; /* Enables 3D space */
+    background-color: #e0e0e0; /* Light grey background for the 3D area */
+    overflow: hidden; /* Or auto/scroll if content might exceed dimensions */
+    display: flex; /* For centering items, or use grid */
+    justify-content: center;
+    align-items: center;
+}
+
+#d-editor-container img {
+    width: 150px; /* Default width for new images */
+    height: auto;
+    object-fit: contain;
+    position: absolute; /* Allows positioning with transform */
+    transform-style: preserve-3d; /* Important for child elements if they also have 3D transforms */
+    transition: transform 0.1s ease-out; /* Smooth transitions for manipulations */
+    border: 1px solid #666;
+    box-shadow: 3px 3px 8px rgba(0,0,0,0.3);
+}
