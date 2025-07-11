@@ -2,7 +2,7 @@
   "name": "PromptWorld",
   "short_name": "PromptWorld",
   "description": "Organize images in 3D space with AI descriptions and prompting.",
-  "start_url": "/index.html",
+  "start_url": "index.html",
   "display": "standalone",
   "background_color": "#f4f4f4",
   "theme_color": "#333333",

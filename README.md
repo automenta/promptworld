@@ -39,16 +39,32 @@ The app is designed with a web-first approach using vanilla JavaScript, HTML, an
 ### Web Version
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/PromptWorld.git
+   git clone https://github.com/USERNAME/REPOSITORY.git # Replace USERNAME/REPOSITORY with the actual path
    ```
 2. Open `src/index.html` in a modern web browser.
 3. (Optional) Host on a static server (e.g., GitHub Pages) for online access. The app includes a `manifest.json` for Progressive Web App (PWA) capabilities, allowing it to be "installed" on supported browsers.
+    - **Note for PWA Icons**: The PWA manifest (`src/manifest.json`) references icons in `src/assets/icons/`. Placeholder files have been created. You should replace `src/assets/icons/icon-192x192.png` and `src/assets/icons/icon-512x512.png` with your actual application icons.
 4. Enter your Gemini API key in the app's settings page to enable AI features.
 
 ### Android Version
-1. Clone the repository.
+1. Clone the repository (if not already done).
 2. Open the Android project in Android Studio (located in the `android/` directory).
-3. Build the APK: Select "Build > Build Bundle(s) / APK(s) > Build APK(s)".
+3. **Configure Signing (First Time Only)**:
+    - Before building a release APK, you need to set up signing credentials. The `android/app/build.gradle` file contains placeholder signing configurations.
+    - You will need to generate a Java Keystore (JKS) file. For example:
+      ```bash
+      keytool -genkey -v -keystore promptworld-release-key.keystore -alias promptworldalias -keyalg RSA -keysize 2048 -validity 10000
+      ```
+    - Place the generated `promptworld-release-key.keystore` file in the `android/app/` directory (or your chosen location).
+    - **Securely** update `android/app/build.gradle` or (preferably) your `~/.gradle/gradle.properties` file or environment variables with your actual `storeFile` path (if different), `storePassword`, `keyAlias`, and `keyPassword`. **Do not commit your actual passwords or keystore file to version control.**
+4. **Build the Release APK**:
+    - In Android Studio: Select "Build > Generate Signed Bundle / APK...", choose "APK", and follow the prompts, selecting the release signing configuration you set up.
+    - Or, from the command line within the `android/` directory:
+      ```bash
+      ./gradlew assembleRelease
+      ```
+    - The signed APK will be located in `android/app/build/outputs/apk/release/`.
+    - **Note**: The build process now automatically copies the necessary web assets from the main `src/` directory into the Android app's assets folder.
 4. Install the APK on an Android device or emulator (Android 8.0+).
 5. Grant permissions for storage and internet when prompted.
 6. The app loads the web assets locally; enter your Gemini API key in settings.
@@ -118,7 +134,7 @@ Contributions are welcome! Please:
 
 MIT License
 
-Copyright (c) 2024] YourName
+Copyright (c) [Year] [Copyright Holder]
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
