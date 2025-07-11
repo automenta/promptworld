@@ -1,6 +1,6 @@
-# WorldPrompt Development Plan
+# PromptWorld Development Plan
 
-This development plan outlines the step-by-step process for building WorldPrompt, a cross-platform app for organizing images in approximate 3D space with AI descriptions and prompting capabilities. The plan is divided into phases. Milestones include deliverables and testing checkpoints.
+This development plan outlines the step-by-step process for building PromptWorld, a cross-platform app for organizing images in approximate 3D space with AI descriptions and prompting capabilities. The plan is divided into phases. Milestones include deliverables and testing checkpoints.
 
 The plan emphasizes a web-first approach for maximum code sharing, with Android integration as a wrapper. All core code uses vanilla JavaScript, HTML, and CSS3D.
 
