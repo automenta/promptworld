@@ -28,6 +28,7 @@
             </div>
             <input type="file" id="image-upload-input" accept="image/*" style="display: none;">
             <button id="import-image-btn">Import Image</button>
+            <button id="toggle-view-mode-btn" style="margin-left: 10px;">Switch to Navigation Mode</button>
             <div id="current-project-images">
                 <!-- Image list/count will be shown here -->
             </div>
@@ -50,7 +51,23 @@
                 </ul>
             </div>
             <hr>
-            <button id="back-to-home-btn">Back to Home</button>
+            <button id="export-project-json-btn" style="margin-top: 10px;">Export Project (JSON)</button>
+            <button id="export-view-png-btn" style="margin-left: 10px; margin-top: 10px;">Export View (PNG)</button>
+            <button id="go-to-prompt-screen-btn" style="margin-left: 10px; margin-top: 10px;">Prompt World Model</button>
+            <button id="back-to-home-btn" style="margin-left: 10px; margin-top: 10px;">Back to Home</button>
+        </section>
+
+        <section id="prompt-screen" style="display: none;">
+            <h2>Prompt World Model</h2>
+            <p>Ask questions or give commands based on the current 3D model and its descriptions.</p>
+            <textarea id="user-prompt-input" rows="4" style="width: 95%; margin-bottom: 10px;" placeholder="e.g., 'List all objects on the left side', 'What is near the red car?', 'Simulate removing the large tree.'"></textarea>
+            <button id="submit-prompt-btn">Submit Prompt</button>
+            <div id="prompt-response-area" style="margin-top: 15px; padding: 10px; border: 1px solid #eee; min-height: 50px; background-color: #f9f9f9;">
+                <!-- AI responses will appear here -->
+                <p>AI response will appear here...</p>
+            </div>
+            <hr>
+            <button id="back-to-editor-from-prompt-btn">Back to Editor</button>
         </section>
 
         <section id="settings-screen" style="display: none;">

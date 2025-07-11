@@ -61,7 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const editorScreen = document.getElementById('editor-screen');
     const editorHeader = editorScreen.querySelector('h2');
     const dEditorContainer = document.getElementById('d-editor-container');
-    const settingsScreen = document.getElementById('settings-screen'); // Assuming you'll add a settings button
+    const settingsScreen = document.getElementById('settings-screen');
+    const promptScreen = document.getElementById('prompt-screen'); // New Prompt Screen
     const imageUploadInput = document.getElementById('image-upload-input');
     const importImageBtn = document.getElementById('import-image-btn');
     const currentProjectImagesDiv = document.getElementById('current-project-images');
@@ -78,10 +79,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveApiKeyBtn = document.getElementById('save-api-key-btn');
     const apiKeyInput = document.getElementById('api-key-input');
     const apiKeyStatus = document.getElementById('api-key-status');
+    const toggleViewModeBtn = document.getElementById('toggle-view-mode-btn');
+    // Prompt Screen Elements
+    const goToPromptScreenBtn = document.getElementById('go-to-prompt-screen-btn');
+    const backToEditorFromPromptBtn = document.getElementById('back-to-editor-from-prompt-btn');
+    const userPromptInput = document.getElementById('user-prompt-input');
+    const submitPromptBtn = document.getElementById('submit-prompt-btn');
+    const promptResponseArea = document.getElementById('prompt-response-area');
+    const exportProjectJsonBtn = document.getElementById('export-project-json-btn');
+    const exportViewPngBtn = document.getElementById('export-view-png-btn');
+
 
     let geminiApiKey = ''; // Global variable to store the API key
     const API_KEY_STORAGE_ID = 'promptWorldApiKey';
 
+    let isNavigationMode = false; // false = Edit Mode, true = Navigation Mode
     let isPanningCamera = false;
     let lastPanMouseX, lastPanMouseY;
 
@@ -98,6 +110,187 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(settingsScreen);
             populateApiKeyInput(); // Populate input when showing settings
             apiKeyStatus.textContent = ''; // Clear status
+        });
+    }
+
+    if (exportViewPngBtn) {
+        exportViewPngBtn.addEventListener('click', () => {
+            if (!currentProject) {
+                alert("No project loaded to export a view.");
+                return;
+            }
+            if (!dEditorContainer) {
+                alert("Editor container not found.");
+                return;
+            }
+
+            alert("Note: Screenshot functionality is experimental and may not fully represent the 3D view due to CSS3D complexities when rendering to a 2D canvas without external libraries. It will attempt to capture a 2D projection.");
+
+            const imageHostWrapper = document.getElementById('image-host-wrapper');
+            if (!imageHostWrapper) {
+                alert("Image host wrapper not found.");
+                return;
+            }
+
+            const canvas = document.createElement('canvas');
+            const containerRect = dEditorContainer.getBoundingClientRect();
+            canvas.width = containerRect.width;
+            canvas.height = containerRect.height;
+            const ctx = canvas.getContext('2d');
+
+            // Fill background of canvas (matching dEditorContainer's background)
+            const computedStyle = window.getComputedStyle(dEditorContainer);
+            ctx.fillStyle = computedStyle.backgroundColor || '#e0e0e0'; // Default if not found
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const promises = [];
+
+            // It's crucial to draw images in their perceived Z-order for a somewhat correct representation.
+            // We can sort by the 'z' component of translate3d if available and significant.
+            // This is a simplification as true 3D ordering is more complex.
+            const imagesToDraw = Array.from(imageHostWrapper.children)
+                .filter(el => el.tagName === 'IMG')
+                .map(imgEl => {
+                    const transform = imgEl.style.transform;
+                    let z = 0;
+                    const translateMatch = transform.match(/translate3d\([^,]+,\s*[^,]+,\s*([^p]+)px\)/);
+                    if (translateMatch && translateMatch[1]) {
+                        z = parseFloat(translateMatch[1]) || 0;
+                    }
+                    return { element: imgEl, z: z };
+                })
+                .sort((a, b) => a.z - b.z); // Draw images with smaller Z (further away) first
+
+
+            imagesToDraw.forEach(imgData => {
+                const imgEl = imgData.element;
+                const img = new Image();
+                // Important: For cross-origin images, this will taint the canvas unless CORS headers are set on the image source.
+                // Since we are using base64 data URLs, this should be fine.
+                img.src = imgEl.src;
+
+                const promise = new Promise((resolve, reject) => {
+                    img.onload = () => {
+                        // This is a major simplification. Replicating CSS transform matrix on canvas is hard.
+                        // We will attempt a simplified version.
+                        const transformStyle = imgEl.style.transform;
+                        const matrix = new DOMMatrix(window.getComputedStyle(imgEl).transform);
+
+                        // Get image's original (untransformed) dimensions and position relative to its offsetParent (imageHostWrapper)
+                        // For absolute positioned elements, offsetTop/Left are relative to offsetParent
+                        const elRect = imgEl.getBoundingClientRect();
+                        const parentRect = imageHostWrapper.getBoundingClientRect();
+
+                        // Calculate the top-left corner of the image *before* transformation, relative to the imageHostWrapper
+                        // This is not straightforward with CSS transforms. getBoundingClientRect includes the transform.
+                        // A more robust way would be to parse translate3d from imgEl.style.transform
+                        // For simplicity, we'll try to use matrix components if they represent simple translations.
+                        // The matrix.e and matrix.f are the x and y translation components (m41, m42)
+
+                        const imgWidth = parseFloat(imgEl.style.width) || imgEl.width || elRect.width / (matrix.a || 1) ; // Approximate original width
+                        const imgHeight = parseFloat(imgEl.style.height) || imgEl.height || elRect.height / (matrix.d || 1); // Approximate original height
+
+                        ctx.save();
+
+                        // The imageHostWrapper itself is transformed for camera pan/zoom.
+                        // We are attempting to draw a "flattened" view as seen within dEditorContainer.
+                        // Using getBoundingClientRect for images relative to dEditorContainer already gives
+                        // their screen-projected positions and dimensions.
+
+                        // Then apply the individual image's transformation
+                        // This is where it gets really tricky to be accurate for full 3D.
+                        // setTransform will overwrite, so we need to multiply matrices or apply sequentially.
+                        // For now, we'll apply the image's matrix relative to the already transformed context.
+                        // This means we need to pre-multiply the wrapper's transform by the image's transform.
+                        // Or, simpler: translate, rotate, scale based on parsed values.
+                        // The current approach ctx.setTransform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f)
+                        // will draw the image as if its transform was relative to the canvas origin, not the wrapper.
+
+                        // Let's try to apply the image's transform directly if it's simple.
+                        // We are drawing onto a canvas that is the size of dEditorContainer.
+                        // The image positions are relative to imageHostWrapper.
+                        // And imageHostWrapper is transformed.
+
+                        // The most straightforward way for a 2D canvas is to draw each image
+                        // at its transformed position and size as seen in the 2D projection.
+                        // This means we use the bounding client rect relative to the container.
+
+                        const dEditorRect = dEditorContainer.getBoundingClientRect();
+                        const imgBoundingRect = imgEl.getBoundingClientRect();
+
+                        // Calculate position relative to the dEditorContainer
+                        const drawX = imgBoundingRect.left - dEditorRect.left;
+                        const drawY = imgBoundingRect.top - dEditorRect.top;
+                        const drawWidth = imgBoundingRect.width;
+                        const drawHeight = imgBoundingRect.height;
+
+                        // This doesn't account for rotation within the bounding box.
+                        // For a more accurate representation of rotation, one would need to:
+                        // 1. Translate context to image center.
+                        // 2. Rotate context.
+                        // 3. Draw image offset by -width/2, -height/2.
+                        // This is still a 2D rotation. 3D rotations (rotateX, rotateY) are not directly mappable.
+
+                        // Simple draw using bounding box (will not show 3D perspective or rotations accurately)
+                        ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+
+                        ctx.restore();
+                        resolve();
+                    };
+                    img.onerror = () => {
+                        console.error("Error loading image for canvas drawing:", imgEl.src);
+                        reject("Image load error for canvas");
+                    };
+                });
+                promises.push(promise);
+            });
+
+            Promise.all(promises).then(() => {
+                const dataUrl = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = dataUrl;
+                const projectName = currentProject.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'untitled_project';
+                a.download = `${projectName}_view.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                console.log("View exported as PNG:", a.download);
+            }).catch(error => {
+                console.error("Error drawing images to canvas:", error);
+                alert("Failed to export view as PNG. Some images might not have loaded correctly for capture. See console.");
+            });
+        });
+    }
+
+    if (exportProjectJsonBtn) {
+        exportProjectJsonBtn.addEventListener('click', () => {
+            if (!currentProject) {
+                alert("No project loaded to export.");
+                return;
+            }
+
+            try {
+                // Sanitize or select fields for export if necessary.
+                // For now, exporting the whole currentProject object.
+                // Note: imageDataUrl can make the JSON very large. Consider if this is desired.
+                // For simplicity, we'll include it as per current structure.
+                const projectJson = JSON.stringify(currentProject, null, 2); // Pretty print JSON
+                const blob = new Blob([projectJson], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                // Sanitize project name for filename
+                const projectName = currentProject.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'untitled_project';
+                a.download = `${projectName}.promptworld.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                console.log("Project exported as JSON:", a.download);
+            } catch (error) {
+                console.error("Error exporting project to JSON:", error);
+                alert("Failed to export project as JSON. See console for details.");
+            }
         });
     }
 
@@ -228,6 +421,177 @@ document.addEventListener('DOMContentLoaded', () => {
         // Handle DB initialization failure (e.g., show error to user)
     });
 
+    // Navigation for Prompt Screen
+    if (goToPromptScreenBtn) {
+        goToPromptScreenBtn.addEventListener('click', () => {
+            if (!currentProject) {
+                alert("Please load a project first to use the prompting feature.");
+                return;
+            }
+            // Ensure we are leaving navigation mode if it was active in editor
+            if (isNavigationMode) {
+                isNavigationMode = false; // Reset to edit mode conceptually for editor
+                toggleViewModeBtn.textContent = 'Switch to Navigation Mode';
+                dEditorContainer.classList.remove('navigation-mode');
+                clearDescriptionTooltip();
+                // No need to re-render here as we are leaving the screen
+            }
+            showScreen(promptScreen);
+            promptResponseArea.innerHTML = '<p>AI response will appear here...</p>'; // Reset response area
+            userPromptInput.value = ''; // Clear previous prompt
+        });
+    }
+
+    if (backToEditorFromPromptBtn) {
+        backToEditorFromPromptBtn.addEventListener('click', () => {
+            showScreen(editorScreen);
+            // No need to change navigation mode state here, editor will be in its last state (edit mode)
+        });
+    }
+
+    if (submitPromptBtn) {
+        submitPromptBtn.addEventListener('click', handlePromptSubmission);
+    }
+
+    async function handlePromptSubmission() {
+        const userQuery = userPromptInput.value.trim();
+        if (!userQuery) {
+            alert("Please enter a prompt.");
+            return;
+        }
+
+        if (!geminiApiKey) {
+            promptResponseArea.innerHTML = "<p style='color: red;'>Error: Gemini API Key is not set. Please set it in Settings.</p>";
+            alert("Gemini API Key is not set. Please go to Settings to add it.");
+            return;
+        }
+
+        if (!navigator.onLine) {
+            promptResponseArea.innerHTML = "<p style='color: red;'>Error: No internet connection. Please check your connection and try again.</p>";
+            alert("Error: No internet connection. Prompting requires an active internet connection.");
+            return;
+        }
+
+        if (!currentProject || !currentProject.images || currentProject.images.length === 0) {
+            promptResponseArea.innerHTML = "<p style='color: orange;'>No images in the current project to prompt about.</p>";
+            alert("There are no images in the current project to ask about.");
+            return;
+        }
+
+        promptResponseArea.innerHTML = "<p><i>Sending prompt to AI...</i></p>";
+        submitPromptBtn.disabled = true;
+
+        try {
+            // 1. Aggregate World Model Data
+            const worldModelContext = currentProject.images.map(imgNode => {
+                return {
+                    id: imgNode.id.substring(0, 5), // Short ID for context
+                    description: imgNode.description || "No description available.",
+                    position: imgNode.position,
+                    rotation: imgNode.rotation,
+                    scale: imgNode.scale
+                };
+            });
+
+            const worldModelString = JSON.stringify(worldModelContext, null, 2);
+
+            // 2. Construct the prompt
+            const systemInstruction = `You are an AI assistant helping to understand and interact with a 3D model composed of several images.
+The user will provide a query about this model.
+The model's current state is described by the following JSON data, where each object represents an image plane in the 3D scene:
+${worldModelString}
+
+Based on this data and the user's query, provide a concise and helpful response.
+If the query asks to simulate a change, describe the likely outcome or what would need to happen. Do not actually modify the JSON data.
+If a query is ambiguous or requires information not present in the descriptions or spatial data, state that clearly.
+Focus on interpreting the spatial relationships and descriptive content of the images.`;
+
+            const fullPrompt = `${systemInstruction}\n\nUser Query: "${userQuery}"`;
+
+            // 3. Call Gemini API
+            const API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`;
+            const requestBody = {
+                contents: [{ parts: [{ text: fullPrompt }] }],
+                // Optional: Add generationConfig for temperature, maxOutputTokens, safetySettings etc.
+                // generationConfig: {
+                //   "temperature": 0.7,
+                //   "maxOutputTokens": 1024,
+                // }
+            };
+
+            const response = await fetch(API_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                const apiErrorMsg = errorData.error ? errorData.error.message : `HTTP ${response.statusText}`;
+                let userFriendlyError = `Error: API request failed (${response.status}). ${apiErrorMsg}`;
+                 if (response.status === 400 && apiErrorMsg.toLowerCase().includes("api key not valid")) {
+                    userFriendlyError = "Error: Invalid API Key. Please check your API key in Settings.";
+                } else if (response.status === 429) {
+                    userFriendlyError = "Error: API rate limit exceeded or quota finished. Please try again later.";
+                }
+                promptResponseArea.innerHTML = `<p style='color: red;'>${userFriendlyError}</p>`;
+                console.error("API Error during prompting:", response.status, errorData);
+            } else {
+                const responseData = await response.json();
+                if (responseData.promptFeedback && responseData.promptFeedback.blockReason) {
+                    const reason = responseData.promptFeedback.blockReason;
+                    promptResponseArea.innerHTML = `<p style='color: orange;'>Warning: Prompt was blocked by the API. Reason: ${reason}.</p>`;
+                    console.warn("Prompt blocked by API:", reason, responseData);
+                } else if (responseData.candidates && responseData.candidates.length > 0 &&
+                    responseData.candidates[0].content && responseData.candidates[0].content.parts &&
+                    responseData.candidates[0].content.parts.length > 0 && responseData.candidates[0].content.parts[0].text) {
+
+                    const aiResponseText = responseData.candidates[0].content.parts[0].text;
+                    // Sanitize basic HTML from response if needed, or use .textContent
+                    promptResponseArea.innerHTML = `<p>${aiResponseText.replace(/\n/g, '<br>')}</p>`;
+                } else {
+                    promptResponseArea.innerHTML = "<p style='color: orange;'>Warning: AI returned an empty or unexpected response.</p>";
+                    console.warn("Empty or unexpected AI response:", responseData);
+                }
+            }
+
+        } catch (error) {
+            console.error("Error during prompt submission:", error);
+            let errorMessage = `An unexpected error occurred: ${error.message}.`;
+            if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+                errorMessage = "Error: Network issue. Could not connect to the AI service.";
+            }
+            promptResponseArea.innerHTML = `<p style='color: red;'>${errorMessage}</p>`;
+        } finally {
+            submitPromptBtn.disabled = false;
+        }
+    }
+
+
+    if (toggleViewModeBtn) {
+        toggleViewModeBtn.addEventListener('click', () => {
+            isNavigationMode = !isNavigationMode;
+            if (isNavigationMode) {
+                toggleViewModeBtn.textContent = 'Switch to Edit Mode';
+                dEditorContainer.classList.add('navigation-mode');
+                // Potentially clear selected image if any
+                if(selectedImageElement) {
+                    // Logic to deselect if any visual indication of selection exists
+                    selectedImageElement = null;
+                    currentImageNode = null;
+                }
+                console.log("Switched to Navigation Mode");
+            } else {
+                toggleViewModeBtn.textContent = 'Switch to Navigation Mode';
+                dEditorContainer.classList.remove('navigation-mode');
+                // Clear any active tooltips
+                clearDescriptionTooltip();
+                console.log("Switched to Edit Mode");
+            }
+            // Re-render to apply/remove event listeners or change styles if needed
+            renderImagesIn3DView();
+        });
+    }
 
     // Event Listeners for Navigation
     if (newProjectBtn) {
@@ -295,7 +659,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function showScreen(screenElement) {
         homeScreen.style.display = 'none';
         editorScreen.style.display = 'none';
-        if (settingsScreen) settingsScreen.style.display = 'none'; // Check if it exists
+        if (settingsScreen) settingsScreen.style.display = 'none';
+        if (promptScreen) promptScreen.style.display = 'none'; // Hide prompt screen
 
         screenElement.style.display = 'block';
     }
@@ -421,13 +786,102 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Add mousedown listener for dragging
                 imgElement.addEventListener('mousedown', onImageMouseDown);
-                // Add wheel listener for scaling
                 imgElement.addEventListener('wheel', onImageWheel);
+
+                if (isNavigationMode) {
+                    imgElement.addEventListener('mouseenter', onImageMouseEnterNavigation);
+                    imgElement.addEventListener('mouseleave', onImageMouseLeaveNavigation);
+                    // For touch devices, a tap could show the tooltip
+                    imgElement.addEventListener('click', onImageClickNavigation);
+                } else {
+                    // Ensure these are removed if mode switched back
+                    imgElement.removeEventListener('mouseenter', onImageMouseEnterNavigation);
+                    imgElement.removeEventListener('mouseleave', onImageMouseLeaveNavigation);
+                    imgElement.removeEventListener('click', onImageClickNavigation);
+                }
 
                 imageHostWrapper.appendChild(imgElement); // Append to wrapper, not container
             });
         }
     }
+
+    let descriptionTooltip = null; // To hold the tooltip element
+
+    function showDescriptionTooltip(imgNode, event) {
+        clearDescriptionTooltip(); // Remove any existing tooltip
+
+        if (!imgNode.description) return; // No description to show
+
+        descriptionTooltip = document.createElement('div');
+        descriptionTooltip.id = 'description-tooltip';
+        descriptionTooltip.textContent = imgNode.description;
+        descriptionTooltip.style.position = 'absolute';
+
+        // Position tooltip near the mouse cursor or image element
+        // Adjusting for editor container's offset and scale
+        const rect = dEditorContainer.getBoundingClientRect();
+        let x = event.clientX - rect.left;
+        let y = event.clientY - rect.top;
+
+        descriptionTooltip.style.left = `${x + 15}px`; // Offset from cursor
+        descriptionTooltip.style.top = `${y + 15}px`;
+
+        descriptionTooltip.style.background = 'rgba(0,0,0,0.8)';
+        descriptionTooltip.style.color = 'white';
+        descriptionTooltip.style.padding = '8px';
+        descriptionTooltip.style.borderRadius = '4px';
+        descriptionTooltip.style.maxWidth = '300px';
+        descriptionTooltip.style.zIndex = '10000'; // Ensure it's on top
+        descriptionTooltip.style.pointerEvents = 'none'; // So it doesn't interfere with other mouse events
+
+        dEditorContainer.appendChild(descriptionTooltip);
+    }
+
+    function clearDescriptionTooltip() {
+        if (descriptionTooltip) {
+            descriptionTooltip.remove();
+            descriptionTooltip = null;
+        }
+    }
+
+    function onImageMouseEnterNavigation(event) {
+        if (!isNavigationMode || !currentProject) return;
+        const imgId = event.target.id;
+        const imgNode = currentProject.images.find(node => node.id === imgId);
+        if (imgNode) {
+            showDescriptionTooltip(imgNode, event);
+        }
+    }
+
+    function onImageMouseLeaveNavigation() {
+        if (!isNavigationMode) return;
+        clearDescriptionTooltip();
+    }
+
+    let lastTooltipClickTime = 0;
+    let lastTooltipNodeId = null;
+
+    function onImageClickNavigation(event) {
+        if (!isNavigationMode || !currentProject) return;
+        event.preventDefault(); // Prevent other actions like drag-select starting
+        event.stopPropagation(); // Stop event from bubbling to editor container for panning
+
+        const imgId = event.target.id;
+        const imgNode = currentProject.images.find(node => node.id === imgId);
+
+        const currentTime = Date.now();
+        // If tapping the same image again quickly, hide tooltip (toggle behavior)
+        if (imgNode && descriptionTooltip && lastTooltipNodeId === imgId && (currentTime - lastTooltipClickTime < 500)) {
+            clearDescriptionTooltip();
+            lastTooltipClickTime = 0; // Reset time
+            lastTooltipNodeId = null;
+        } else if (imgNode) {
+            showDescriptionTooltip(imgNode, event);
+            lastTooltipClickTime = currentTime;
+            lastTooltipNodeId = imgId;
+        }
+    }
+
 
     let selectedImageElement = null;
     let offsetX, offsetY; // For X, Y positioning
@@ -442,6 +896,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function onImageMouseDown(e) {
         if (e.button !== 0) return; // Only respond to left mouse button
+
+        // If in navigation mode, image mousedown should not initiate drag/rotate/translate for the image itself.
+        // It might still be useful for other interactions later, but for now, we block editing actions.
+        // Panning the camera is handled by dEditorContainer's mousedown.
+        if (isNavigationMode) {
+            // If a tooltip is shown via click, another click on an image (even the same one)
+            // should ideally hide the current tooltip before potentially showing a new one.
+            // The onImageClickNavigation handles tooltip display.
+            // We could clear the tooltip here if the click is on an image,
+            // but onImageClickNavigation is more specific.
+            // For now, just prevent edit interactions.
+            e.stopPropagation(); // Prevent editor container panning if clicking on an image in nav mode.
+                                 // This allows onImageClickNavigation to handle the interaction.
+            return;
+        }
 
         selectedImageElement = e.target;
         if (currentProject && currentProject.images) {
@@ -571,7 +1040,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function onImageWheel(e) {
-        e.preventDefault(); // Prevent page scrolling
+        // If in navigation mode, wheel event on an image should not scale the image.
+        // It should be handled by the dEditorContainer's wheel event for camera zoom.
+        if (isNavigationMode) {
+            // Allow event to bubble up to dEditorContainer for camera zoom.
+            // Do not preventDefault or stopPropagation here unless specifically intending to block camera zoom when over an image.
+            // For now, assume camera zoom should still work.
+            return;
+        }
+
+        e.preventDefault(); // Prevent page scrolling if we are scaling an image
+        e.stopPropagation(); // Prevent dEditorContainer's wheel (camera zoom) if scaling an image
 
         const targetImageElement = e.target;
         let targetImageNode = null;
@@ -780,6 +1259,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            if (!navigator.onLine) {
+                aiStatusIndicator.textContent = "Error: No internet connection. Please check your connection and try again.";
+                aiStatusIndicator.style.color = "red";
+                alert("Error: No internet connection. AI processing requires an active internet connection.");
+                return;
+            }
+
             const selectedImageNodes = [];
             const checkboxes = aiSelectableImageListUl.querySelectorAll('input[type="checkbox"]:checked');
             checkboxes.forEach(cb => {
@@ -896,17 +1382,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                    console.error(`API Error for image ${imgNode.id}: ${response.status}`, errorData);
-                    imgNode.description = `Error: API request failed (${response.status}). ${errorData.error ? errorData.error.message : response.statusText}`;
+                    let userErrorMessage = `API request failed (${response.status}).`;
+                    try {
+                        const errorData = await response.json();
+                        console.error(`API Error for image ${imgNode.id}: ${response.status}`, errorData);
+                        const apiErrorMsg = errorData.error ? errorData.error.message : response.statusText;
+
+                        if (response.status === 400) { // Bad Request
+                            if (apiErrorMsg.toLowerCase().includes("api key not valid")) {
+                                userErrorMessage = "Error: Invalid API Key. Please check your API key in Settings.";
+                            } else {
+                                userErrorMessage = `Error: API Bad Request (${response.status}) - ${apiErrorMsg}. Please check image data or prompt.`;
+                            }
+                        } else if (response.status === 429) { // Too Many Requests
+                            userErrorMessage = "Error: API rate limit exceeded or quota finished. Please try again later.";
+                        } else if (response.status >= 500) { // Server error
+                            userErrorMessage = `Error: Gemini API server error (${response.status}). Please try again later.`;
+                        } else {
+                            userErrorMessage = `Error: API request failed (${response.status}) - ${apiErrorMsg}.`;
+                        }
+                        imgNode.description = userErrorMessage;
+                    } catch (e) { // JSON parsing failed or other network issue
+                        console.error(`API Error (could not parse JSON) for image ${imgNode.id}: ${response.status}`, response.statusText);
+                        imgNode.description = `Error: API request failed (${response.status}) - ${response.statusText}.`;
+                    }
                     errorCount++;
                 } else {
                     const responseData = await response.json();
 
                     if (responseData.promptFeedback && responseData.promptFeedback.blockReason) {
-                        console.warn(`Image ${imgNode.id} processing blocked. Reason: ${responseData.promptFeedback.blockReason}`);
-                        imgNode.description = `Warning: Processing blocked by API (${responseData.promptFeedback.blockReason}).`;
-                        // Potentially still an error, depending on how strict we want to be
+                        const blockReason = responseData.promptFeedback.blockReason;
+                        console.warn(`Image ${imgNode.id} processing blocked by API. Reason: ${blockReason}`);
+                        let friendlyBlockReason = blockReason;
+                        if (blockReason === "SAFETY") {
+                            friendlyBlockReason = "due to safety concerns by the API";
+                        } else if (blockReason === "OTHER") {
+                             friendlyBlockReason = "for an unspecified reason by the API";
+                        }
+                        imgNode.description = `Warning: Processing blocked ${friendlyBlockReason}.`;
+                        // Consider if this should count as an error for the summary
                         // errorCount++;
                     } else if (responseData.candidates && responseData.candidates.length > 0 &&
                         responseData.candidates[0].content && responseData.candidates[0].content.parts &&
@@ -916,20 +1430,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log(`Description for ${imgNode.id}: ${imgNode.description}`);
                     } else {
                         console.warn(`No description found in API response for image ${imgNode.id}:`, responseData);
-                        imgNode.description = "Warning: No description returned by API.";
-                        // Consider if this is an error or just a warning
+                        imgNode.description = "Warning: No description text returned by API. The response might be empty or in an unexpected format.";
                     }
                 }
-            } catch (err) {
+            } catch (err) { // Catches network errors (e.g., fetch promise rejected) or other JS errors
                 console.error(`Error processing image ${imgNode.id}:`, err);
-                imgNode.description = `Error: ${err.message}`;
+                if (err instanceof TypeError && err.message.includes("Failed to fetch")) { // Common network error
+                     imgNode.description = "Error: Network issue. Could not connect to API.";
+                } else {
+                    imgNode.description = `Error: ${err.message}`;
+                }
                 errorCount++;
             }
             processedCount++;
         } // end for loop
 
         if (errorCount > 0) {
-            throw new Error(`Finished processing with ${errorCount} error(s) out of ${imageNodes.length} images.`);
+            // The main error message for the status indicator is handled in the click event handler's catch block.
+            // This throw is to signal failure to that handler.
+            throw new Error(`Finished processing with ${errorCount} error(s) out of ${imageNodes.length} images. Check individual image descriptions for details.`);
         }
     }
 

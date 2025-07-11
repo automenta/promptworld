@@ -106,3 +106,26 @@ footer {
     border: 1px solid #666;
     box-shadow: 3px 3px 8px rgba(0,0,0,0.3);
 }
+
+/* Styles for Navigation Mode */
+.navigation-mode img:hover {
+    /* Optional: slightly change border or add a subtle glow in nav mode on hover, if not using tooltip for hover */
+    /* border-color: #007bff; */
+    cursor: default; /* Or 'help' if showing info on click/hover */
+}
+
+#description-tooltip {
+    /* Styles are set dynamically in JS, but a base class could be defined here if preferred */
+    /* Example:
+    position: absolute;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 8px;
+    border-radius: 4px;
+    max-width: 300px;
+    z-index: 10000;
+    pointer-events: none;
+    font-size: 0.9em;
+    line-height: 1.4;
+    */
+}
