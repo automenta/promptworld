@@ -1,0 +1,87 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.hypothesis/
+.pytest_cache/
+celerybeat-schedule
+*.mo
+*.pot
+*.db
+*.sqlite3
+
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.lock
+*.iml
+*.jar
+*.keystore
+*.jks
+*.key
+*.DS_Store
+build/
+captures/
+.gradle/
+local.properties
+.idea/workspace.xml
+.idea/libraries/
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+# Android Studio
+.idea/
+*.iml
+modules.xml
+# Local configuration file (sdk path, etc)
+local.properties
+# OSX
+.DS_Store
+# Misc
+.firebase/
+*.swp
+*~
+# Crashlytics plugin
+com_crashlytics_export_strings.xml
+# Generated
+**/R.java
+**/BuildConfig.java

@@ -1,0 +1,61 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.example.promptworld' // Ensure this matches your package name
+    compileSdk 33 // Example: Android 13 (Tiramisu)
+
+    defaultConfig {
+        applicationId "com.example.promptworld"
+        minSdk 26 // Android 8.0 (Oreo) - as per README
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    // If you have Kotlin, configure it here
+    // kotlinOptions {
+    //     jvmTarget = '1.8'
+    // }
+
+    // Ensure assets from src/main/assets are packaged
+    sourceSets {
+        main {
+            assets.srcDirs = ['src/main/assets']
+            // If your web assets are in ../../src (relative to this build.gradle)
+            // and you want to copy them automatically, you might add a task.
+            // For now, manual copy or symlink is assumed for src/ -> android/app/src/main/assets/
+        }
+    }
+    // Note: For a real build, you'd need to ensure web assets from the main `src`
+    // directory (e.g., `../../src/index.html`) are copied into `android/app/src/main/assets/`.
+    // This can be done with a custom Gradle task or by manually placing them.
+    // The `MainActivity.java` currently loads `file:///android_asset/index.html`.
+}
+
+dependencies {
+    // Standard Android dependencies
+    implementation 'androidx.appcompat:appcompat:1.6.1' // Example, use latest stable
+    implementation 'com.google.android.material:material:1.9.0' // Example for Material Design components
+
+    // Testing dependencies
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+
+    // WebView (already part of Android SDK but good to be explicit if needed for specific features)
+    // implementation 'androidx.webkit:webkit:1.7.0' // If you need newer WebView features not in OS
+}
