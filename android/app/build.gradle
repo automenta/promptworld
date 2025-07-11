@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.promptworld' // Ensure this matches your package name
+    namespace 'io.promptworld.app' // Ensure this matches your package name
     compileSdk 33 // Example: Android 13 (Tiramisu)
 
     defaultConfig {
-        applicationId "com.example.promptworld"
+        applicationId "io.promptworld.app"
         minSdk 26 // Android 8.0 (Oreo) - as per README
         targetSdk 33
         versionCode 1
@@ -18,22 +18,42 @@ android {
 
     signingConfigs {
         release {
-            // IMPORTANT: Replace these with your actual keystore details.
-            // You should not commit your keystore or its passwords to version control.
-            // Store them securely, e.g., in environment variables or a gradle.properties file
-            // that is not checked into source control.
-            // Example:
-            // storeFile file(System.getenv("KEYSTORE_FILE") ?: "my-release-key.keystore")
-            // storePassword System.getenv("KEYSTORE_PASSWORD") ?: "YOUR_STORE_PASSWORD"
-            // keyAlias System.getenv("KEY_ALIAS") ?: "YOUR_KEY_ALIAS"
-            // keyPassword System.getenv("KEY_PASSWORD") ?: "YOUR_KEY_PASSWORD"
+            // IMPORTANT: Configure your release signing information securely.
+            // 1. Generate a keystore file if you don't have one:
+            //    keytool -genkey -v -keystore promptworld-release-key.keystore -alias promptworldalias -keyalg RSA -keysize 2048 -validity 10000
+            //    Place 'promptworld-release-key.keystore' in the 'android/app/' directory.
+            //    Ensure this file is NOT added to version control (e.g., add it to .gitignore).
             //
-            // For this placeholder, we'll assume the keystore would be in the app module's root.
-            // In a real setup, you would generate this file using keytool.
-            storeFile file("promptworld-release-key.keystore")
-            storePassword "YOUR_STORE_PASSWORD_PLACEHOLDER"
-            keyAlias "promptworldalias"
-            keyPassword "YOUR_KEY_PASSWORD_PLACEHOLDER"
+            // 2. Store your keystore path, passwords, and alias securely.
+            //    The recommended way is to use a 'gradle.properties' file in your user's .gradle directory
+            //    (e.g., ~/.gradle/gradle.properties) or environment variables.
+            //    Do NOT hardcode them here.
+            //
+            // Example using gradle.properties (add these lines to your ~/.gradle/gradle.properties):
+            // PROMPTWORLD_RELEASE_STORE_FILE=path/to/your/promptworld-release-key.keystore
+            // PROMPTWORLD_RELEASE_STORE_PASSWORD=your_store_password
+            // PROMPTWORLD_RELEASE_KEY_ALIAS=promptworldalias
+            // PROMPTWORLD_RELEASE_KEY_PASSWORD=your_key_password
+            //
+            // Then, uncomment and use these lines below:
+            // if (project.hasProperty('PROMPTWORLD_RELEASE_STORE_FILE')) {
+            //     storeFile file(PROMPTWORLD_RELEASE_STORE_FILE)
+            //     storePassword PROMPTWORLD_RELEASE_STORE_PASSWORD
+            //     keyAlias PROMPTWORLD_RELEASE_KEY_ALIAS
+            //     keyPassword PROMPTWORLD_RELEASE_KEY_PASSWORD
+            // } else {
+            //     // Fallback or error if properties not found, e.g., for CI builds without credentials
+            //     println "Release signing information not found. Build will use debug signing or fail."
+            //     // Alternatively, to make it fail explicitly if not set:
+            //     // throw new InvalidUserDataException("Release signing information not found in gradle.properties or environment variables.")
+            // }
+
+            // The following are placeholder lines to allow the project to sync/build initially.
+            // YOU MUST REPLACE OR CONFIGURE THEM SECURELY AS DESCRIBED ABOVE.
+            storeFile file(System.getenv("PROMPTWORLD_RELEASE_STORE_FILE") ?: project.findProperty("PROMPTWORLD_RELEASE_STORE_FILE") ?: "promptworld-release-key.keystore")
+            storePassword System.getenv("PROMPTWORLD_RELEASE_STORE_PASSWORD") ?: project.findProperty("PROMPTWORLD_RELEASE_STORE_PASSWORD") ?: ""
+            keyAlias System.getenv("PROMPTWORLD_RELEASE_KEY_ALIAS") ?: project.findProperty("PROMPTWORLD_RELEASE_KEY_ALIAS") ?: "promptworldalias"
+            keyPassword System.getenv("PROMPTWORLD_RELEASE_KEY_PASSWORD") ?: project.findProperty("PROMPTWORLD_RELEASE_KEY_PASSWORD") ?: ""
         }
     }
 

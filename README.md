@@ -55,8 +55,18 @@ The app is designed with a web-first approach using vanilla JavaScript, HTML, an
       ```bash
       keytool -genkey -v -keystore promptworld-release-key.keystore -alias promptworldalias -keyalg RSA -keysize 2048 -validity 10000
       ```
-    - Place the generated `promptworld-release-key.keystore` file in the `android/app/` directory (or your chosen location).
-    - **Securely** update `android/app/build.gradle` or (preferably) your `~/.gradle/gradle.properties` file or environment variables with your actual `storeFile` path (if different), `storePassword`, `keyAlias`, and `keyPassword`. **Do not commit your actual passwords or keystore file to version control.**
+    - Place the generated `promptworld-release-key.keystore` file in the `android/app/` directory. Make sure to add this keystore file to your `.gitignore` (e.g., `android/app/promptworld-release-key.keystore`) to prevent committing it.
+    - **Securely provide your signing credentials.** The `android/app/build.gradle` file is configured to read these from your `~/.gradle/gradle.properties` file or environment variables.
+        - **Recommended Method (`~/.gradle/gradle.properties`):** Add the following to your user-level `gradle.properties` file (usually at `~/.gradle/gradle.properties`):
+          ```properties
+          PROMPTWORLD_RELEASE_STORE_FILE=android/app/promptworld-release-key.keystore
+          PROMPTWORLD_RELEASE_STORE_PASSWORD=YOUR_KEYSTORE_PASSWORD
+          PROMPTWORLD_RELEASE_KEY_ALIAS=promptworldalias
+          PROMPTWORLD_RELEASE_KEY_PASSWORD=YOUR_KEY_PASSWORD
+          ```
+          (Adjust `PROMPTWORLD_RELEASE_STORE_FILE` if your keystore is elsewhere, relative to the project root. Adjust `PROMPTWORLD_RELEASE_KEY_ALIAS` if you used a different alias.)
+        - **Alternative (Environment Variables):** You can set `PROMPTWORLD_RELEASE_STORE_FILE`, `PROMPTWORLD_RELEASE_STORE_PASSWORD`, `PROMPTWORLD_RELEASE_KEY_ALIAS`, and `PROMPTWORLD_RELEASE_KEY_PASSWORD` as environment variables.
+    - **Do not commit your actual passwords or keystore file to version control.**
 4. **Build the Release APK**:
     - In Android Studio: Select "Build > Generate Signed Bundle / APK...", choose "APK", and follow the prompts, selecting the release signing configuration you set up.
     - Or, from the command line within the `android/` directory:
@@ -134,7 +144,7 @@ Contributions are welcome! Please:
 
 MIT License
 
-Copyright (c) [Year] [Copyright Holder]
+Copyright (c) 2024 PromptWorld Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
