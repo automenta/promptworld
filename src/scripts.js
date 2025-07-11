@@ -27,6 +27,30 @@ const DB_VERSION = 1;
 const PROJECT_STORE_NAME = 'projects';
 let db;
 
+// Utility for simple text spinner
+let spinnerInterval = null;
+const spinnerFrames = ['( . )', '( . . )', '( . . . )']; // Simpler spinner
+let currentSpinnerFrame = 0;
+
+function startSpinner(element, baseText) {
+    if (!element) return;
+    if (spinnerInterval) clearInterval(spinnerInterval);
+    currentSpinnerFrame = 0;
+    const updateSpinner = () => {
+        element.textContent = `${baseText} ${spinnerFrames[currentSpinnerFrame]}`;
+        currentSpinnerFrame = (currentSpinnerFrame + 1) % spinnerFrames.length;
+    };
+    updateSpinner(); // Initial display
+    spinnerInterval = setInterval(updateSpinner, 400); // Spinner speed
+}
+
+function stopSpinner(element, finalText) {
+    if (spinnerInterval) clearInterval(spinnerInterval);
+    spinnerInterval = null;
+    if (element) element.textContent = finalText;
+}
+
+
 function initDB() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -84,6 +108,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const goToPromptScreenBtn = document.getElementById('go-to-prompt-screen-btn');
     const backToEditorFromPromptBtn = document.getElementById('back-to-editor-from-prompt-btn');
     const userPromptInput = document.getElementById('user-prompt-input');
+    if (userPromptInput) {
+        userPromptInput.setAttribute('aria-label', 'User prompt input for world model');
+    }
     const submitPromptBtn = document.getElementById('submit-prompt-btn');
     const promptResponseArea = document.getElementById('prompt-response-area');
     const exportProjectJsonBtn = document.getElementById('export-project-json-btn');
@@ -109,6 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dEditorContainer) {
         dEditorContainer.addEventListener('mousedown', onCameraMouseDown);
         dEditorContainer.addEventListener('wheel', onCameraWheel, { passive: false }); // passive:false to allow preventDefault
+        // Initial ARIA attributes for editor container - assuming it starts in edit mode
+        dEditorContainer.setAttribute('aria-label', '3D editor canvas - Edit Mode');
+        dEditorContainer.setAttribute('role', 'application'); // Role application due to complex interactions
     }
 
     if (goToSettingsBtn) {
@@ -370,7 +400,15 @@ document.addEventListener('DOMContentLoaded', () => {
         lastPanMouseX = e.clientX;
         lastPanMouseY = e.clientY;
 
-        renderImagesIn3DView(); // Re-render all images with new camera offset
+        // OPTIMIZATION: Directly update wrapper transform instead of full re-render
+        const imageHostWrapper = document.getElementById('image-host-wrapper');
+        if (imageHostWrapper && currentProject) {
+            const camX = currentProject.cameraOffsetX || 0;
+            const camY = currentProject.cameraOffsetY || 0;
+            const camZoom = currentProject.cameraZoom || 1;
+            imageHostWrapper.style.transform = `translate3d(${-camX}px, ${-camY}px, 0px) scale(${camZoom})`;
+        }
+        // renderImagesIn3DView(); // Re-render all images with new camera offset - Replaced by direct transform
     }
 
     function onCameraMouseUp(e) {
@@ -408,7 +446,16 @@ document.addEventListener('DOMContentLoaded', () => {
             currentProject.cameraZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
 
             console.log("Camera Zoom:", currentProject.cameraZoom);
-            renderImagesIn3DView(); // Re-render with new zoom
+
+            // OPTIMIZATION: Directly update wrapper transform instead of full re-render
+            const imageHostWrapper = document.getElementById('image-host-wrapper');
+            if (imageHostWrapper && currentProject) {
+                const camX = currentProject.cameraOffsetX || 0;
+                const camY = currentProject.cameraOffsetY || 0;
+                const camZoom = currentProject.cameraZoom || 1;
+                imageHostWrapper.style.transform = `translate3d(${-camX}px, ${-camY}px, 0px) scale(${camZoom})`;
+            }
+            // renderImagesIn3DView(); // Re-render with new zoom - Replaced by direct transform
 
             // Debounce saving? For now, save on each effective zoom change.
             saveProject(currentProject).then(() => {
@@ -484,7 +531,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        promptResponseArea.innerHTML = "<p><i>Sending prompt to AI...</i></p>";
+        // promptResponseArea.innerHTML = "<p><i>Sending prompt to AI...</i></p>";
+        startSpinner(promptResponseArea.querySelector('p') || promptResponseArea, "Sending prompt to AI...");
+        if (!promptResponseArea.querySelector('p')) { // If spinner created the element, ensure it's styled
+            promptResponseArea.innerHTML = `<p>${promptResponseArea.textContent}</p>`;
+        }
         submitPromptBtn.disabled = true;
 
         try {
@@ -540,12 +591,14 @@ Focus on interpreting the spatial relationships and descriptive content of the i
                 } else if (response.status === 429) {
                     userFriendlyError = "Error: API rate limit exceeded or quota finished. Please try again later.";
                 }
+                stopSpinner(promptResponseArea.querySelector('p') || promptResponseArea, '');
                 promptResponseArea.innerHTML = `<p style='color: red;'>${userFriendlyError}</p>`;
                 console.error("API Error during prompting:", response.status, errorData);
             } else {
                 const responseData = await response.json();
                 if (responseData.promptFeedback && responseData.promptFeedback.blockReason) {
                     const reason = responseData.promptFeedback.blockReason;
+                    stopSpinner(promptResponseArea.querySelector('p') || promptResponseArea, '');
                     promptResponseArea.innerHTML = `<p style='color: orange;'>Warning: Prompt was blocked by the API. Reason: ${reason}.</p>`;
                     console.warn("Prompt blocked by API:", reason, responseData);
                 } else if (responseData.candidates && responseData.candidates.length > 0 &&
@@ -553,9 +606,11 @@ Focus on interpreting the spatial relationships and descriptive content of the i
                     responseData.candidates[0].content.parts.length > 0 && responseData.candidates[0].content.parts[0].text) {
 
                     const aiResponseText = responseData.candidates[0].content.parts[0].text;
+                    stopSpinner(promptResponseArea.querySelector('p') || promptResponseArea, '');
                     // Sanitize basic HTML from response if needed, or use .textContent
                     promptResponseArea.innerHTML = `<p>${aiResponseText.replace(/\n/g, '<br>')}</p>`;
                 } else {
+                    stopSpinner(promptResponseArea.querySelector('p') || promptResponseArea, '');
                     promptResponseArea.innerHTML = "<p style='color: orange;'>Warning: AI returned an empty or unexpected response.</p>";
                     console.warn("Empty or unexpected AI response:", responseData);
                 }
@@ -567,8 +622,13 @@ Focus on interpreting the spatial relationships and descriptive content of the i
             if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
                 errorMessage = "Error: Network issue. Could not connect to the AI service.";
             }
+            stopSpinner(promptResponseArea.querySelector('p') || promptResponseArea, '');
             promptResponseArea.innerHTML = `<p style='color: red;'>${errorMessage}</p>`;
         } finally {
+            // Ensure spinner is stopped even if an error occurred before typical stop points
+            if (spinnerInterval) { // Check if spinner is still running
+                 stopSpinner(promptResponseArea.querySelector('p') || promptResponseArea, promptResponseArea.textContent); // Keep current text if any
+            }
             submitPromptBtn.disabled = false;
         }
     }
@@ -580,6 +640,7 @@ Focus on interpreting the spatial relationships and descriptive content of the i
             if (isNavigationMode) {
                 toggleViewModeBtn.textContent = 'Switch to Edit Mode';
                 dEditorContainer.classList.add('navigation-mode');
+                dEditorContainer.setAttribute('aria-label', '3D editor canvas - Navigation Mode');
                 // Potentially clear selected image if any
                 if(selectedImageElement) {
                     // Logic to deselect if any visual indication of selection exists
@@ -590,6 +651,7 @@ Focus on interpreting the spatial relationships and descriptive content of the i
             } else {
                 toggleViewModeBtn.textContent = 'Switch to Navigation Mode';
                 dEditorContainer.classList.remove('navigation-mode');
+                dEditorContainer.setAttribute('aria-label', '3D editor canvas - Edit Mode');
                 // Clear any active tooltips
                 clearDescriptionTooltip();
                 console.log("Switched to Edit Mode");
@@ -777,6 +839,13 @@ Focus on interpreting the spatial relationships and descriptive content of the i
                 const imgElement = document.createElement('img');
                 imgElement.src = imgNode.imageDataUrl;
                 imgElement.id = imgNode.id;
+
+                // Accessibility: Add alt text and ARIA label
+                const altText = imgNode.description ? `Image: ${imgNode.description.substring(0, 100)}` : `Interactive image ${imgNode.id.substring(0,5)} in the 3D scene`;
+                imgElement.alt = altText;
+                imgElement.setAttribute('aria-label', altText);
+                // Consider role="button" if interactions are primarily click/drag based beyond just being an image
+                // imgElement.setAttribute('role', 'img'); // Default is fine, but can be explicit
 
                 // Positions are now relative to the wrapper, so use their direct values
                 const x = imgNode.position.x || (index * 20 - (currentProject.images.length * 10));
@@ -1289,13 +1358,14 @@ Focus on interpreting the spatial relationships and descriptive content of the i
                 return;
             }
 
-            aiStatusIndicator.textContent = `Processing ${selectedImageNodes.length} image(s)... (This may take a moment)`;
+            // aiStatusIndicator.textContent = `Processing ${selectedImageNodes.length} image(s)... (This may take a moment)`;
+            startSpinner(aiStatusIndicator, `Processing ${selectedImageNodes.length} image(s)`);
             aiStatusIndicator.style.color = "blue";
             processSelectedAiBtn.disabled = true;
 
             try {
-                await generateImageDescriptions(selectedImageNodes);
-                aiStatusIndicator.textContent = `Successfully processed ${selectedImageNodes.length} image(s). Descriptions updated.`;
+                await generateImageDescriptions(selectedImageNodes, aiStatusIndicator, selectedImageNodes.length); // Pass indicator and total count
+                stopSpinner(aiStatusIndicator, `Successfully processed ${selectedImageNodes.length} image(s). Descriptions updated.`);
                 aiStatusIndicator.style.color = "green";
                 // Refresh UI
                 saveProject(currentProject).then(() => {
@@ -1304,16 +1374,20 @@ Focus on interpreting the spatial relationships and descriptive content of the i
                 });
             } catch (error) {
                 console.error("Error during AI processing:", error);
-                aiStatusIndicator.textContent = `Error: ${error.message}. Check console for details.`;
+                stopSpinner(aiStatusIndicator, `Error: ${error.message}. Check console for details.`);
                 aiStatusIndicator.style.color = "red";
             } finally {
+                // Ensure spinner is stopped if an error occurred that didn't get caught by the specific stopSpinner above
+                if (spinnerInterval && aiStatusIndicator.textContent.includes('( .')) { // Check if spinner is likely active
+                    stopSpinner(aiStatusIndicator, aiStatusIndicator.textContent.substring(0, aiStatusIndicator.textContent.lastIndexOf('( .')));
+                }
                 processSelectedAiBtn.disabled = false;
             }
         });
     }
 
 
-    async function generateImageDescriptions(imageNodes) {
+    async function generateImageDescriptions(imageNodes, statusElement, totalToProcess) { // Added statusElement and totalToProcess
         if (!geminiApiKey) {
             throw new Error("Gemini API Key is not set.");
         }
@@ -1324,7 +1398,9 @@ Focus on interpreting the spatial relationships and descriptive content of the i
 
         for (const imgNode of imageNodes) {
             try {
-                aiStatusIndicator.textContent = `Processing image ${processedCount + 1} of ${imageNodes.length} (ID: ${imgNode.id.substring(0,5)})...`;
+                // Update spinner text for each image
+                startSpinner(statusElement, `Processing image ${processedCount + 1} of ${totalToProcess} (ID: ${imgNode.id.substring(0,5)})`);
+
 
                 // 1. Extract Base64 data and MIME type
                 const imageDataPrefix = "data:";

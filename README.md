@@ -18,10 +18,11 @@ The app is designed with a web-first approach using vanilla JavaScript, HTML, an
 
 - **Image Import**: Upload photos or extract frames from videos. Supports gallery selection, camera capture (web via getUserMedia, Android via native intents).
 - **3D Editor**: Manually position, rotate, and scale images in a CSS3D-based virtual space using touch/mouse gestures.
-- **Navigation**: Explore the 3D model with camera controls (pan, zoom, rotate).
+- **Navigation**: Explore the 3D model with camera controls (pan, zoom, rotate). Includes a dedicated navigation mode that disables editing and shows image descriptions on hover/click.
 - **AI Processing**: Generate detailed textual descriptions of images using the Gemini API (cloud-based).
 - **Prompting**: Query the world model with natural language (e.g., "Describe the layout" or "Simulate removing an object") via Gemini API.
-- **Storage**: Local persistence using IndexedDB; export models as JSON.
+- **Storage & Export**: Local persistence using IndexedDB. Export models as JSON files and the current 3D view as a PNG image (experimental).
+- **Project Comparison**: Load an exported JSON project file to compare its image descriptions against the current project.
 - **Cross-Platform**: Shared codebase for web and Android, with minimal platform-specific code.
 - **Minimal Dependencies**: No external libraries—pure vanilla JS/CSS/HTML for core functionality.
 
@@ -61,8 +62,8 @@ The app is designed with a web-first approach using vanilla JavaScript, HTML, an
 2. **Import Images**: Upload images or videos. For videos, select frame extraction interval.
 3. **Edit in 3D**: Drag images into the 3D space, use gestures to adjust position/rotation/scale.
 4. **Process with AI**: Select images and generate descriptions (internet required).
-5. **Navigate & Prompt**: Explore the 3D view or use the chat interface to prompt the model (e.g., "List all furniture").
-6. **Export**: Save your model as JSON for backup or sharing.
+5. **Navigate & Prompt**: Switch to Navigation Mode in the editor to explore and view image descriptions on hover/click, or use the "Prompt World Model" screen with its chat interface to query the model (e.g., "List all furniture").
+6. **Export & Compare**: Save your model as JSON or export the current view as a PNG from the editor. You can also compare your current project with a previously exported JSON project using the "Compare" feature.
 
 ### Settings
 - **API Key**: Required for AI features. Obtain from Google Cloud Console (Gemini API).

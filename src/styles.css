@@ -41,6 +41,7 @@ ul {
 li {
     padding: 0.5rem 0;
     border-bottom: 1px #eee solid;
+    overflow-wrap: break-word; /* For better text wrapping in lists */
 }
 
 li:last-child {
