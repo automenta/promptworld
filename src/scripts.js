@@ -88,6 +88,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const promptResponseArea = document.getElementById('prompt-response-area');
     const exportProjectJsonBtn = document.getElementById('export-project-json-btn');
     const exportViewPngBtn = document.getElementById('export-view-png-btn');
+    // Comparison Feature Elements
+    const compareProjectBtn = document.getElementById('compare-project-btn');
+    const compareFileInput = document.getElementById('compare-file-input');
+    const compareModal = document.getElementById('compare-modal');
+    const closeCompareModalBtn = document.getElementById('close-compare-modal-btn');
+    const compareResultsArea = document.getElementById('compare-results-area');
 
 
     let geminiApiKey = ''; // Global variable to store the API key
@@ -1451,6 +1457,134 @@ Focus on interpreting the spatial relationships and descriptive content of the i
             throw new Error(`Finished processing with ${errorCount} error(s) out of ${imageNodes.length} images. Check individual image descriptions for details.`);
         }
     }
+
+});
+
+    // Comparison Feature Logic
+    if (compareProjectBtn) {
+        compareProjectBtn.addEventListener('click', () => {
+            if (!currentProject) {
+                alert("Please load a project first to compare.");
+                return;
+            }
+            compareFileInput.click(); // Trigger hidden file input
+        });
+    }
+
+    if (compareFileInput) {
+        compareFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file && currentProject) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const comparisonProjectData = JSON.parse(e.target.result);
+                        // Basic validation of the loaded project structure (can be more thorough)
+                        if (!comparisonProjectData || !comparisonProjectData.images || !comparisonProjectData.name) {
+                            alert("Invalid project file format.");
+                            compareFileInput.value = null; // Reset file input
+                            return;
+                        }
+                        performComparison(currentProject, comparisonProjectData);
+                    } catch (error) {
+                        console.error("Error parsing comparison file:", error);
+                        alert("Failed to parse the comparison project file. Make sure it's a valid JSON exported from PromptWorld.");
+                    } finally {
+                        compareFileInput.value = null; // Reset file input
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+    }
+
+    function performComparison(project1, project2) { // project1 is current, project2 is from file
+        compareResultsArea.innerHTML = ''; // Clear previous results
+
+        const p1Images = new Map(project1.images.map(img => [img.id, img]));
+        const p2Images = new Map(project2.images.map(img => [img.id, img]));
+
+        let resultsHtml = `<h3>Comparing Current Project: "${project1.name}" with Loaded Project: "${project2.name}"</h3>`;
+        let hasDifferences = false;
+
+        // Check for common images and modifications
+        project1.images.forEach(img1 => {
+            const img2 = p2Images.get(img1.id);
+            if (img2) { // Image exists in both projects (common)
+                let itemHtml = `<div><strong>Image ID: ${img1.id.substring(0, 8)}... (Common)</strong>`;
+                const desc1 = img1.description || "No description";
+                const desc2 = img2.description || "No description";
+
+                if (desc1 !== desc2) {
+                    itemHtml += `<p><em>Current:</em> ${escapeHtml(desc1)}</p><p><em>Loaded:</em> ${escapeHtml(desc2)}</p></div>`;
+                    resultsHtml += `<div class="status-modified">${itemHtml}</div>`;
+                    hasDifferences = true;
+                } else {
+                    itemHtml += `<p><em>Description:</em> ${escapeHtml(desc1)} (Unchanged)</p>`;
+                    resultsHtml += `<div class="status-same">${itemHtml}</div>`;
+                }
+                p2Images.delete(img1.id); // Remove from p2Map to track remaining (added to p2 / removed from p1)
+            } else { // Image only in project1 (added in current relative to loaded)
+                resultsHtml += `<div class="status-added"><strong>Image ID: ${img1.id.substring(0, 8)}... (Only in Current Project)</strong><p><em>Description:</em> ${escapeHtml(img1.description || "No description")}</p></div>`;
+                hasDifferences = true;
+            }
+        });
+
+        // Images remaining in p2Images were only in project2 (removed from current / only in loaded)
+        p2Images.forEach(img2 => {
+            resultsHtml += `<div class="status-removed"><strong>Image ID: ${img2.id.substring(0, 8)}... (Only in Loaded Project)</strong><p><em>Description:</em> ${escapeHtml(img2.description || "No description")}</p></div>`;
+            hasDifferences = true;
+        });
+
+        // After all comparisons, if hasDifferences is still false,
+        // it means all images matched perfectly and had same descriptions,
+        // and there were no images unique to either project.
+        if (!hasDifferences) {
+            if (project1.images.length === 0 && project2.images.length === 0) {
+                // Both projects were empty from the start.
+                resultsHtml += "<p>Both projects are empty.</p>";
+            } else if (project1.images.length > 0 && project2.images.length > 0 && p1Images.size === p2Images.size ) {
+                // This implies both projects had the same images and descriptions were identical.
+                // The initial p1Images.size check isn't perfect here, better to rely on hasDifferences.
+                // If hasDifferences is false, and projects were not empty, they must be identical.
+                 resultsHtml += "<p>No differences found. Projects are identical by image ID and description content.</p>";
+            } else if (project1.images.length === 0 && project2.images.length > 0) {
+                // This case would have set hasDifferences = true due to items only in loaded.
+                // This block is more of a fallback, primary logic is setting hasDifferences.
+            } else if (project2.images.length === 0 && project1.images.length > 0) {
+                // This case would have set hasDifferences = true due to items only in current.
+            }
+            // If one project is empty and the other is not, 'hasDifferences' would have been set to true
+            // by the loops (either "status-added" or "status-removed" would be present).
+            // So, if !hasDifferences is true here, it implies either both were empty, or both had content and were identical.
+        }
+
+        compareResultsArea.innerHTML = resultsHtml;
+        compareModal.style.display = 'block';
+    }
+
+    function escapeHtml(unsafe) {
+        if (unsafe === null || typeof unsafe === 'undefined') return '';
+        return unsafe
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+
+    if (closeCompareModalBtn) {
+        closeCompareModalBtn.addEventListener('click', () => {
+            compareModal.style.display = 'none';
+        });
+    }
+
+    // Close modal if user clicks outside of the modal content
+    window.addEventListener('click', (event) => {
+        if (event.target === compareModal) {
+            compareModal.style.display = 'none';
+        }
+    });
 
 });
 

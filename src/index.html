@@ -53,9 +53,22 @@
             <hr>
             <button id="export-project-json-btn" style="margin-top: 10px;">Export Project (JSON)</button>
             <button id="export-view-png-btn" style="margin-left: 10px; margin-top: 10px;">Export View (PNG)</button>
+            <button id="compare-project-btn" style="margin-left: 10px; margin-top: 10px;">Compare with JSON...</button>
+            <input type="file" id="compare-file-input" accept=".json,.promptworld.json" style="display: none;" />
             <button id="go-to-prompt-screen-btn" style="margin-left: 10px; margin-top: 10px;">Prompt World Model</button>
             <button id="back-to-home-btn" style="margin-left: 10px; margin-top: 10px;">Back to Home</button>
         </section>
+
+        <!-- Modal for Comparison Results -->
+        <div id="compare-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close-btn" id="close-compare-modal-btn">&times;</span>
+                <h2>Comparison Results</h2>
+                <div id="compare-results-area">
+                    <!-- Results will be populated here by scripts.js -->
+                </div>
+            </div>
+        </div>
 
         <section id="prompt-screen" style="display: none;">
             <h2>Prompt World Model</h2>
