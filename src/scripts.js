@@ -65,6 +65,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const imageUploadInput = document.getElementById('image-upload-input');
     const importImageBtn = document.getElementById('import-image-btn');
     const currentProjectImagesDiv = document.getElementById('current-project-images');
+    // AI Processing UI Elements
+    const processSelectedAiBtn = document.getElementById('process-selected-ai-btn');
+    const aiSelectableImageListUl = document.getElementById('ai-selectable-image-list');
+    const aiStatusIndicator = document.getElementById('ai-status-indicator');
+    const aiDescriptionsListUl = document.getElementById('ai-descriptions-list');
 
     const newProjectBtn = document.getElementById('new-project-btn');
     const backToHomeBtn = document.getElementById('back-to-home-btn');
@@ -615,6 +620,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentProjectImagesDiv) return;
         if (!currentProject) {
             currentProjectImagesDiv.innerHTML = "";
+            if (aiSelectableImageListUl) aiSelectableImageListUl.innerHTML = ""; // Clear AI selection list too
+            if (aiDescriptionsListUl) aiDescriptionsListUl.innerHTML = ""; // Clear AI descriptions list
             return;
         }
 
@@ -634,17 +641,301 @@ document.addEventListener('DOMContentLoaded', () => {
                 imgElement.style.marginRight = "10px";
                 li.appendChild(imgElement);
                 li.appendChild(document.createTextNode(`Image ${index + 1} (ID: ${imgNode.id.substring(0,5)}...)`));
+                // Display description if available
+                if (imgNode.description) {
+                    const descSpan = document.createElement('span');
+                    descSpan.textContent = ` Description: ${imgNode.description.substring(0, 30)}...`;
+                    descSpan.style.fontSize = "0.8em";
+                    descSpan.style.color = "#555";
+                    li.appendChild(descSpan);
+                }
                 ul.appendChild(li);
             });
             currentProjectImagesDiv.appendChild(ul);
+        }
+        populateAiSelectableImageList(); // Populate the AI image selection list
+        renderAiDescriptions(); // Render existing descriptions
+    }
+
+    function populateAiSelectableImageList() {
+        if (!aiSelectableImageListUl || !currentProject || !currentProject.images) {
+            if (aiSelectableImageListUl) aiSelectableImageListUl.innerHTML = "";
+            return;
+        }
+        aiSelectableImageListUl.innerHTML = ""; // Clear previous list
+
+        if (currentProject.images.length === 0) {
+            aiSelectableImageListUl.innerHTML = "<li>No images in project to select.</li>";
+            return;
+        }
+
+        currentProject.images.forEach(imgNode => {
+            const listItem = document.createElement('li');
+            listItem.style.display = 'flex';
+            listItem.style.alignItems = 'center';
+            listItem.style.marginBottom = '5px';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `cb-ai-${imgNode.id}`;
+            checkbox.value = imgNode.id;
+            checkbox.style.marginRight = '10px';
+
+            const imgElement = document.createElement('img');
+            imgElement.src = imgNode.imageDataUrl;
+            imgElement.style.width = "40px";
+            imgElement.style.height = "40px";
+            imgElement.style.objectFit = "cover";
+            imgElement.style.marginRight = "10px";
+
+            const label = document.createElement('label');
+            label.htmlFor = `cb-ai-${imgNode.id}`;
+            label.appendChild(imgElement);
+            label.appendChild(document.createTextNode(`Image ID: ${imgNode.id.substring(0,5)}... (Click to select)`));
+
+            // Display existing description hint
+            if (imgNode.description) {
+                const descHint = document.createElement('span');
+                descHint.textContent = " (Has description)";
+                descHint.style.fontSize = "0.8em";
+                descHint.style.color = "green";
+                label.appendChild(descHint);
+            }
+
+
+            listItem.appendChild(checkbox);
+            listItem.appendChild(label);
+            aiSelectableImageListUl.appendChild(listItem);
+        });
+    }
+
+    function renderAiDescriptions() {
+        if (!aiDescriptionsListUl || !currentProject || !currentProject.images) {
+            if (aiDescriptionsListUl) aiDescriptionsListUl.innerHTML = "";
+            return;
+        }
+        aiDescriptionsListUl.innerHTML = ""; // Clear previous list
+
+        const imagesWithDescriptions = currentProject.images.filter(img => img.description);
+
+        if (imagesWithDescriptions.length === 0) {
+            aiDescriptionsListUl.innerHTML = "<li>No descriptions available yet. Process images with AI.</li>";
+            return;
+        }
+
+        imagesWithDescriptions.forEach(imgNode => {
+            const listItem = document.createElement('li');
+
+            const imgElement = document.createElement('img');
+            imgElement.src = imgNode.imageDataUrl;
+            imgElement.style.width = "30px";
+            imgElement.style.height = "30px";
+            imgElement.style.objectFit = "cover";
+            imgElement.style.marginRight = "5px";
+            imgElement.style.verticalAlign = "middle";
+
+            const textStrong = document.createElement('strong');
+            textStrong.textContent = `Image ${imgNode.id.substring(0,5)}...: `;
+
+            const descText = document.createElement('span');
+            descText.textContent = imgNode.description;
+
+            // Basic edit functionality (can be enhanced later)
+            const editBtn = document.createElement('button');
+            editBtn.textContent = "Edit";
+            editBtn.style.marginLeft = "10px";
+            editBtn.style.padding = "2px 5px";
+            editBtn.onclick = () => {
+                const newDesc = prompt(`Edit description for image ${imgNode.id.substring(0,5)}:`, imgNode.description);
+                if (newDesc !== null && newDesc.trim() !== imgNode.description) {
+                    imgNode.description = newDesc.trim();
+                    saveProject(currentProject).then(() => {
+                        console.log("Description updated and project saved.");
+                        renderAiDescriptions(); // Re-render this list
+                        displayProjectImages(); // Re-render main image list to show updated snippet
+                        populateAiSelectableImageList(); // Re-render selection list to update "has description" hint
+                    }).catch(err => console.error("Error saving updated description:", err));
+                }
+            };
+
+            listItem.appendChild(imgElement);
+            listItem.appendChild(textStrong);
+            listItem.appendChild(descText);
+            listItem.appendChild(editBtn);
+            aiDescriptionsListUl.appendChild(listItem);
+        });
+    }
+
+
+    if (processSelectedAiBtn) {
+        processSelectedAiBtn.addEventListener('click', async () => {
+            if (!currentProject) {
+                alert("No project loaded.");
+                return;
+            }
+            if (!geminiApiKey) {
+                aiStatusIndicator.textContent = "Error: Gemini API Key is not set. Please set it in Settings.";
+                aiStatusIndicator.style.color = "red";
+                alert("Gemini API Key is not set. Please go to Settings to add it.");
+                return;
+            }
+
+            const selectedImageNodes = [];
+            const checkboxes = aiSelectableImageListUl.querySelectorAll('input[type="checkbox"]:checked');
+            checkboxes.forEach(cb => {
+                const nodeId = cb.value;
+                const node = currentProject.images.find(img => img.id === nodeId);
+                if (node) {
+                    selectedImageNodes.push(node);
+                }
+            });
+
+            if (selectedImageNodes.length === 0) {
+                aiStatusIndicator.textContent = "No images selected for AI processing.";
+                aiStatusIndicator.style.color = "orange";
+                alert("Please select at least one image to process.");
+                return;
+            }
+
+            aiStatusIndicator.textContent = `Processing ${selectedImageNodes.length} image(s)... (This may take a moment)`;
+            aiStatusIndicator.style.color = "blue";
+            processSelectedAiBtn.disabled = true;
+
+            try {
+                await generateImageDescriptions(selectedImageNodes);
+                aiStatusIndicator.textContent = `Successfully processed ${selectedImageNodes.length} image(s). Descriptions updated.`;
+                aiStatusIndicator.style.color = "green";
+                // Refresh UI
+                saveProject(currentProject).then(() => {
+                     console.log("Project saved with new descriptions.");
+                     displayProjectImages(); // This will call populateAiSelectableImageList and renderAiDescriptions
+                });
+            } catch (error) {
+                console.error("Error during AI processing:", error);
+                aiStatusIndicator.textContent = `Error: ${error.message}. Check console for details.`;
+                aiStatusIndicator.style.color = "red";
+            } finally {
+                processSelectedAiBtn.disabled = false;
+            }
+        });
+    }
+
+
+    async function generateImageDescriptions(imageNodes) {
+        if (!geminiApiKey) {
+            throw new Error("Gemini API Key is not set.");
+        }
+
+        const API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`;
+        let processedCount = 0;
+        let errorCount = 0;
+
+        for (const imgNode of imageNodes) {
+            try {
+                aiStatusIndicator.textContent = `Processing image ${processedCount + 1} of ${imageNodes.length} (ID: ${imgNode.id.substring(0,5)})...`;
+
+                // 1. Extract Base64 data and MIME type
+                const imageDataPrefix = "data:";
+                const base64Marker = ";base64,";
+
+                if (!imgNode.imageDataUrl.startsWith(imageDataPrefix)) {
+                    console.error(`Image ${imgNode.id} has invalid imageDataUrl format.`);
+                    imgNode.description = "Error: Invalid image data format.";
+                    errorCount++;
+                    processedCount++;
+                    continue;
+                }
+
+                const mimeTypeEndIndex = imgNode.imageDataUrl.indexOf(base64Marker);
+                if (mimeTypeEndIndex === -1) {
+                    console.error(`Image ${imgNode.id} has invalid imageDataUrl format (missing base64 marker).`);
+                    imgNode.description = "Error: Invalid image data format.";
+                    errorCount++;
+                    processedCount++;
+                    continue;
+                }
+
+                const mimeType = imgNode.imageDataUrl.substring(imageDataPrefix.length, mimeTypeEndIndex);
+                const base64Data = imgNode.imageDataUrl.substring(mimeTypeEndIndex + base64Marker.length);
+
+                if (!mimeType.startsWith("image/")) {
+                     console.error(`Image ${imgNode.id} has non-image MIME type: ${mimeType}`);
+                     imgNode.description = `Error: Invalid MIME type (${mimeType}).`;
+                     errorCount++;
+                     processedCount++;
+                     continue;
+                }
+
+                const requestBody = {
+                    contents: [
+                        {
+                            parts: [
+                                { text: "Describe this image in detail." },
+                                {
+                                    inline_data: {
+                                        mime_type: mimeType,
+                                        data: base64Data
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    // Optional: Add generationConfig if needed, e.g., for safety settings
+                    // generationConfig: {
+                    //   "temperature": 0.7,
+                    //   "maxOutputTokens": 2048,
+                    // }
+                };
+
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                    console.error(`API Error for image ${imgNode.id}: ${response.status}`, errorData);
+                    imgNode.description = `Error: API request failed (${response.status}). ${errorData.error ? errorData.error.message : response.statusText}`;
+                    errorCount++;
+                } else {
+                    const responseData = await response.json();
+
+                    if (responseData.promptFeedback && responseData.promptFeedback.blockReason) {
+                        console.warn(`Image ${imgNode.id} processing blocked. Reason: ${responseData.promptFeedback.blockReason}`);
+                        imgNode.description = `Warning: Processing blocked by API (${responseData.promptFeedback.blockReason}).`;
+                        // Potentially still an error, depending on how strict we want to be
+                        // errorCount++;
+                    } else if (responseData.candidates && responseData.candidates.length > 0 &&
+                        responseData.candidates[0].content && responseData.candidates[0].content.parts &&
+                        responseData.candidates[0].content.parts.length > 0 && responseData.candidates[0].content.parts[0].text) {
+
+                        imgNode.description = responseData.candidates[0].content.parts[0].text.trim();
+                        console.log(`Description for ${imgNode.id}: ${imgNode.description}`);
+                    } else {
+                        console.warn(`No description found in API response for image ${imgNode.id}:`, responseData);
+                        imgNode.description = "Warning: No description returned by API.";
+                        // Consider if this is an error or just a warning
+                    }
+                }
+            } catch (err) {
+                console.error(`Error processing image ${imgNode.id}:`, err);
+                imgNode.description = `Error: ${err.message}`;
+                errorCount++;
+            }
+            processedCount++;
+        } // end for loop
+
+        if (errorCount > 0) {
+            throw new Error(`Finished processing with ${errorCount} error(s) out of ${imageNodes.length} images.`);
         }
     }
 
 });
 
 // Further application logic will be added here:
-// - 3D editor functions (CSS3D manipulation)
-// - Image import (file input, camera, video frames)
-// - AI integration (Gemini API calls)
+// - AI integration (Gemini API calls) - Partially started
 // - etc.
 console.log("scripts.js loaded");
