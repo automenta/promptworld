@@ -4,6 +4,9 @@ function Project(name) {
     this.id = Date.now().toString(); // Simple unique ID
     this.name = name;
     this.images = []; // Array of ImageNode objects
+    this.cameraOffsetX = 0;
+    this.cameraOffsetY = 0;
+    this.cameraZoom = 1; // For the next step (camera zoom)
     this.createdAt = new Date();
 }
 
@@ -65,13 +68,155 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const newProjectBtn = document.getElementById('new-project-btn');
     const backToHomeBtn = document.getElementById('back-to-home-btn');
-    // const goToSettingsBtn = document.getElementById('go-to-settings-btn'); // Example
-    // const backToHomeFromSettingsBtn = document.getElementById('back-to-home-from-settings-btn');
+    const goToSettingsBtn = document.getElementById('go-to-settings-btn');
+    const backToHomeFromSettingsBtn = document.getElementById('back-to-home-from-settings-btn');
+    const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+    const apiKeyInput = document.getElementById('api-key-input');
+    const apiKeyStatus = document.getElementById('api-key-status');
 
+    let geminiApiKey = ''; // Global variable to store the API key
+    const API_KEY_STORAGE_ID = 'promptWorldApiKey';
+
+    let isPanningCamera = false;
+    let lastPanMouseX, lastPanMouseY;
+
+    // Load API Key on startup
+    loadApiKey();
+
+    if (dEditorContainer) {
+        dEditorContainer.addEventListener('mousedown', onCameraMouseDown);
+        dEditorContainer.addEventListener('wheel', onCameraWheel, { passive: false }); // passive:false to allow preventDefault
+    }
+
+    if (goToSettingsBtn) {
+        goToSettingsBtn.addEventListener('click', () => {
+            showScreen(settingsScreen);
+            populateApiKeyInput(); // Populate input when showing settings
+            apiKeyStatus.textContent = ''; // Clear status
+        });
+    }
+
+    if (backToHomeFromSettingsBtn) {
+        backToHomeFromSettingsBtn.addEventListener('click', () => {
+            showScreen(homeScreen);
+            apiKeyStatus.textContent = ''; // Clear status
+        });
+    }
+
+    if (saveApiKeyBtn) {
+        saveApiKeyBtn.addEventListener('click', () => {
+            const newApiKey = apiKeyInput.value.trim();
+            if (newApiKey) {
+                geminiApiKey = newApiKey;
+                localStorage.setItem(API_KEY_STORAGE_ID, geminiApiKey);
+                apiKeyStatus.textContent = 'API Key saved!';
+                apiKeyStatus.style.color = 'green';
+                console.log("API Key saved.");
+            } else {
+                localStorage.removeItem(API_KEY_STORAGE_ID);
+                geminiApiKey = '';
+                apiKeyStatus.textContent = 'API Key cleared.';
+                apiKeyStatus.style.color = 'orange';
+                console.log("API Key cleared.");
+            }
+            // Optionally clear the input field after saving, or leave it for user to see
+            // apiKeyInput.value = '';
+        });
+    }
+
+    function loadApiKey() {
+        const storedKey = localStorage.getItem(API_KEY_STORAGE_ID);
+        if (storedKey) {
+            geminiApiKey = storedKey;
+            console.log("API Key loaded from localStorage.");
+        } else {
+            console.log("No API Key found in localStorage.");
+        }
+    }
+
+    function populateApiKeyInput() {
+        if (apiKeyInput) {
+            apiKeyInput.value = geminiApiKey || '';
+        }
+    }
+
+    function onCameraMouseDown(e) {
+        // Only pan if the mousedown is directly on the container, not on an image child.
+        // And only if not currently interacting with an image (e.g. selectedImageElement is null)
+        if (e.target === dEditorContainer && !selectedImageElement && e.button === 0 && !e.altKey && !e.shiftKey) { // Ensure no other interaction is intended
+            isPanningCamera = true;
+            lastPanMouseX = e.clientX;
+            lastPanMouseY = e.clientY;
+            dEditorContainer.style.cursor = 'grabbing'; // Indicate panning
+            document.addEventListener('mousemove', onCameraMouseMove);
+            document.addEventListener('mouseup', onCameraMouseUp);
+            e.preventDefault(); // Prevent text selection or other default behaviors
+        }
+    }
+
+    function onCameraMouseMove(e) {
+        if (!isPanningCamera || !currentProject) return;
+
+        const deltaX = e.clientX - lastPanMouseX;
+        const deltaY = e.clientY - lastPanMouseY;
+
+        currentProject.cameraOffsetX -= deltaX; // Subtract to make scene move with mouse
+        currentProject.cameraOffsetY -= deltaY;
+
+        lastPanMouseX = e.clientX;
+        lastPanMouseY = e.clientY;
+
+        renderImagesIn3DView(); // Re-render all images with new camera offset
+    }
+
+    function onCameraMouseUp(e) {
+        if (isPanningCamera) {
+            isPanningCamera = false;
+            dEditorContainer.style.cursor = 'grab'; // Reset cursor
+            document.removeEventListener('mousemove', onCameraMouseMove);
+            document.removeEventListener('mouseup', onCameraMouseUp);
+
+            if (currentProject) {
+                saveProject(currentProject).then(() => {
+                    console.log("Project saved after camera pan.");
+                }).catch(err => {
+                    console.error("Error saving project after camera pan:", err);
+                });
+            }
+        }
+    }
+
+    function onCameraWheel(e) {
+        if (e.target === dEditorContainer && !selectedImageElement && currentProject) {
+            e.preventDefault(); // Prevent page scrolling
+
+            const zoomSpeed = 0.05; // Adjust sensitivity
+            const minZoom = 0.2;
+            const maxZoom = 5.0;
+            let newZoom = currentProject.cameraZoom || 1;
+
+            if (e.deltaY < 0) { // Scroll up -> zoom in
+                newZoom += zoomSpeed;
+            } else { // Scroll down -> zoom out
+                newZoom -= zoomSpeed;
+            }
+
+            currentProject.cameraZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
+
+            console.log("Camera Zoom:", currentProject.cameraZoom);
+            renderImagesIn3DView(); // Re-render with new zoom
+
+            // Debounce saving? For now, save on each effective zoom change.
+            saveProject(currentProject).then(() => {
+                // console.log("Project saved after camera zoom.");
+            }).catch(err => {
+                console.error("Error saving project after camera zoom:", err);
+            });
+        }
+    }
 
     // Initialize DB
     initDB().then(() => {
-        // Load projects or perform other startup tasks
         loadProjects();
     }).catch(error => {
         console.error("Failed to initialize DB:", error);
@@ -210,7 +355,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function loadProjectIntoEditor(project) {
         currentProject = project;
-        console.log("Loading project into editor:", project.name);
+        // Ensure camera offsets and zoom exist, defaulting if not (for older projects)
+        if (typeof currentProject.cameraOffsetX === 'undefined') {
+            currentProject.cameraOffsetX = 0;
+        }
+        if (typeof currentProject.cameraOffsetY === 'undefined') {
+            currentProject.cameraOffsetY = 0;
+        }
+        if (typeof currentProject.cameraZoom === 'undefined') {
+            currentProject.cameraZoom = 1;
+        }
+
+        console.log("Loading project into editor:", project.name, "CamOffset:", currentProject.cameraOffsetX, currentProject.cameraOffsetY);
         editorHeader.textContent = `Editor: ${project.name}`;
         displayProjectImages(); // Display images for the loaded project
         renderImagesIn3DView(); // Render images in 3D view
@@ -218,27 +374,241 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderImagesIn3DView() {
         if (!dEditorContainer) return;
-        dEditorContainer.innerHTML = ''; // Clear previous images
+        dEditorContainer.innerHTML = ''; // Clear previous content
 
-        if (currentProject && currentProject.images) {
+        if (!currentProject) return;
+
+        // Create or get the image host wrapper
+        let imageHostWrapper = document.getElementById('image-host-wrapper');
+        if (!imageHostWrapper) {
+            imageHostWrapper = document.createElement('div');
+            imageHostWrapper.id = 'image-host-wrapper';
+            imageHostWrapper.style.transformStyle = 'preserve-3d';
+            // The perspective container is dEditorContainer, wrapper is for grouping and global transforms
+        }
+        dEditorContainer.appendChild(imageHostWrapper);
+        imageHostWrapper.innerHTML = ''; // Clear previous images from wrapper
+
+        const camX = currentProject.cameraOffsetX || 0;
+        const camY = currentProject.cameraOffsetY || 0;
+        const camZoom = currentProject.cameraZoom || 1;
+
+        // Apply pan and zoom to the wrapper
+        imageHostWrapper.style.transform = `translate3d(${-camX}px, ${-camY}px, 0px) scale(${camZoom})`;
+
+        if (currentProject.images) {
             currentProject.images.forEach((imgNode, index) => {
                 const imgElement = document.createElement('img');
                 imgElement.src = imgNode.imageDataUrl;
                 imgElement.id = imgNode.id;
-                // Apply default transformations from ImageNode, with a slight offset for new images
-                // For newly added images without explicit positions, provide a default cascade
-                const x = imgNode.position.x || (index * 20 - (currentProject.images.length * 10)); // Simple cascade
+
+                // Positions are now relative to the wrapper, so use their direct values
+                const x = imgNode.position.x || (index * 20 - (currentProject.images.length * 10));
                 const y = imgNode.position.y || 0;
-                const z = imgNode.position.z || (index * -10); // Slightly behind the previous
+                const z = imgNode.position.z || (index * -10); // Default cascade
+
                 const rotX = imgNode.rotation.x || 0;
                 const rotY = imgNode.rotation.y || 0;
                 const rotZ = imgNode.rotation.z || 0;
-                const scale = imgNode.scale || 1;
+                const scale = imgNode.scale || 1; // This is individual image scale
 
                 imgElement.style.transform = `translate3d(${x}px, ${y}px, ${z}px) rotateX(${rotX}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg) scale(${scale})`;
-                dEditorContainer.appendChild(imgElement);
+
+                // Add mousedown listener for dragging
+                imgElement.addEventListener('mousedown', onImageMouseDown);
+                // Add wheel listener for scaling
+                imgElement.addEventListener('wheel', onImageWheel);
+
+                imageHostWrapper.appendChild(imgElement); // Append to wrapper, not container
             });
         }
+    }
+
+    let selectedImageElement = null;
+    let offsetX, offsetY; // For X, Y positioning
+    let currentImageNode = null;
+
+    let isRotating = false; // Flag for rotation mode (Shift key)
+    let initialMouseX, initialRotationY;
+
+    let isTranslatingZ = false; // Flag for Z translation mode (Alt key)
+    let initialMouseYForZ, initialPositionZ;
+
+
+    function onImageMouseDown(e) {
+        if (e.button !== 0) return; // Only respond to left mouse button
+
+        selectedImageElement = e.target;
+        if (currentProject && currentProject.images) {
+            currentImageNode = currentProject.images.find(imgNode => imgNode.id === selectedImageElement.id);
+        }
+
+        if (!currentImageNode) {
+            console.error("Could not find ImageNode for selected element:", selectedImageElement.id);
+            selectedImageElement = null;
+            return;
+        }
+
+        // Reset modes
+        isRotating = false;
+        isTranslatingZ = false;
+
+        if (e.shiftKey && !e.altKey) { // Shift key for Y-axis rotation
+            isRotating = true;
+            initialMouseX = e.clientX;
+            initialRotationY = currentImageNode.rotation.y;
+        } else if (e.altKey && !e.shiftKey) { // Alt key for Z-axis translation
+            isTranslatingZ = true;
+            initialMouseYForZ = e.clientY;
+            initialPositionZ = currentImageNode.position.z;
+        } else if (!e.shiftKey && !e.altKey) { // Default: X, Y positioning
+            const transform = selectedImageElement.style.transform;
+            const translateMatch = transform.match(/translate3d\(([^,]+)px, ([^,]+)px, ([^,]+)px\)/);
+
+            let currentX = 0;
+            let currentY = 0;
+            if (translateMatch) {
+                currentX = parseFloat(translateMatch[1]);
+                currentY = parseFloat(translateMatch[2]);
+            }
+            offsetX = e.clientX - currentX;
+            offsetY = e.clientY - currentY;
+        } else {
+            // If both Shift and Alt are pressed, or some other combo, do nothing for now.
+            // Or define a behavior if needed.
+            selectedImageElement = null; // Prevent further actions
+            currentImageNode = null;
+            return;
+        }
+
+
+        document.addEventListener('mousemove', onImageMouseMove);
+        document.addEventListener('mouseup', onImageMouseUp);
+
+        // Prevent default browser drag behavior
+        e.preventDefault();
+    }
+
+    function onImageMouseMove(e) {
+        if (!selectedImageElement || !currentImageNode) return;
+
+        if (isRotating) { // Shift key for Y-axis rotation
+            const deltaX = e.clientX - initialMouseX;
+            const newRotationY = initialRotationY + deltaX;
+            currentImageNode.rotation.y = newRotationY % 360;
+
+            const translateString = `translate3d(${currentImageNode.position.x}px, ${currentImageNode.position.y}px, ${currentImageNode.position.z}px)`;
+            const scaleString = `scale(${currentImageNode.scale})`;
+            const otherRotations = `rotateX(${currentImageNode.rotation.x}deg) rotateZ(${currentImageNode.rotation.z}deg)`;
+            selectedImageElement.style.transform = `${translateString} rotateY(${currentImageNode.rotation.y}deg) ${otherRotations} ${scaleString}`;
+
+        } else if (isTranslatingZ) { // Alt key for Z-axis translation
+            const deltaY = e.clientY - initialMouseYForZ;
+            currentImageNode.position.z = initialPositionZ + deltaY;
+
+            const translateString = `translate3d(${currentImageNode.position.x}px, ${currentImageNode.position.y}px, ${currentImageNode.position.z}px)`;
+            const rotationString = `rotateX(${currentImageNode.rotation.x}deg) rotateY(${currentImageNode.rotation.y}deg) rotateZ(${currentImageNode.rotation.z}deg)`;
+            const scaleString = `scale(${currentImageNode.scale})`;
+            selectedImageElement.style.transform = `${translateString} ${rotationString} ${scaleString}`;
+
+        } else { // Default: X, Y positioning
+            let newX = e.clientX - offsetX;
+            let newY = e.clientY - offsetY;
+            // Note: currentImageNode.position.x and .y are not updated here, only on mouseup.
+            // The visual update uses newX, newY directly.
+
+            const rotationString = `rotateX(${currentImageNode.rotation.x}deg) rotateY(${currentImageNode.rotation.y}deg) rotateZ(${currentImageNode.rotation.z}deg)`;
+            const scaleString = `scale(${currentImageNode.scale})`;
+            selectedImageElement.style.transform = `translate3d(${newX}px, ${newY}px, ${currentImageNode.position.z}px) ${rotationString} ${scaleString}`;
+        }
+    }
+
+    function onImageMouseUp(e) {
+        if (!selectedImageElement || !currentImageNode) {
+            document.removeEventListener('mousemove', onImageMouseMove);
+            document.removeEventListener('mouseup', onImageMouseUp);
+            isRotating = false;
+            isTranslatingZ = false;
+            return;
+        }
+
+        if (isRotating) {
+            console.log("ImageNode updated (Rotation Y):", currentImageNode.id, "New Y Rot:", currentImageNode.rotation.y);
+        } else if (isTranslatingZ) {
+            console.log("ImageNode updated (Position Z):", currentImageNode.id, "New Z Pos:", currentImageNode.position.z);
+        } else { // X, Y Positioning
+            const transform = selectedImageElement.style.transform;
+            const translateMatch = transform.match(/translate3d\(([^,]+)px, ([^,]+)px, ([^,]+)px\)/);
+            if (translateMatch) {
+                currentImageNode.position.x = parseFloat(translateMatch[1]);
+                currentImageNode.position.y = parseFloat(translateMatch[2]);
+                // currentImageNode.position.z is already up-to-date or handled by isTranslatingZ
+            }
+            console.log("ImageNode updated (Position X,Y):", currentImageNode.id, "New Pos:", currentImageNode.position);
+        }
+
+        // Reset all interaction mode flags
+        isRotating = false;
+        isTranslatingZ = false;
+
+        saveProject(currentProject).then(() => {
+            console.log("Project saved after image move.");
+            // Optionally, re-render or update UI elements if needed
+            // displayProjectImages(); // if something in the list needs update based on position
+        }).catch(err => {
+            console.error("Error saving project after image move:", err);
+        });
+
+        selectedImageElement = null;
+        currentImageNode = null;
+        document.removeEventListener('mousemove', onImageMouseMove);
+        document.removeEventListener('mouseup', onImageMouseUp);
+    }
+
+    function onImageWheel(e) {
+        e.preventDefault(); // Prevent page scrolling
+
+        const targetImageElement = e.target;
+        let targetImageNode = null;
+
+        if (currentProject && currentProject.images) {
+            targetImageNode = currentProject.images.find(imgNode => imgNode.id === targetImageElement.id);
+        }
+
+        if (!targetImageNode) {
+            console.error("Could not find ImageNode for wheel event on element:", targetImageElement.id);
+            return;
+        }
+
+        const scaleAmount = 0.1; // How much to scale on each wheel tick
+        let newScale = targetImageNode.scale;
+
+        if (e.deltaY < 0) { // Scroll up - zoom in
+            newScale += scaleAmount;
+        } else { // Scroll down - zoom out
+            newScale -= scaleAmount;
+        }
+
+        newScale = Math.max(0.1, newScale); // Prevent scale from becoming zero or negative
+
+        targetImageNode.scale = newScale;
+
+        // Update the style for visual feedback
+        const existingTransform = targetImageElement.style.transform;
+        const translateMatch = existingTransform.match(/translate3d\([^)]+\)/);
+        const rotateMatch = existingTransform.match(/rotateX\([^)]+\) rotateY\([^)]+\) rotateZ\([^)]+\)/);
+
+        const translateString = translateMatch ? translateMatch[0] : 'translate3d(0px, 0px, 0px)';
+        const rotationString = rotateMatch ? rotateMatch[0] : 'rotateX(0deg) rotateY(0deg) rotateZ(0deg)';
+
+        targetImageElement.style.transform = `${translateString} ${rotationString} scale(${newScale})`;
+
+        // Save changes (debouncing might be good here for performance if many wheel events fire rapidly)
+        saveProject(currentProject).then(() => {
+            // console.log("Project saved after image scale.");
+        }).catch(err => {
+            console.error("Error saving project after image scale:", err);
+        });
     }
 
     function displayProjectImages() {

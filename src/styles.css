@@ -90,6 +90,7 @@ footer {
     perspective: 1000px; /* Enables 3D space */
     background-color: #e0e0e0; /* Light grey background for the 3D area */
     overflow: hidden; /* Or auto/scroll if content might exceed dimensions */
+    cursor: grab; /* Indicate it's draggable for panning */
     display: flex; /* For centering items, or use grid */
     justify-content: center;
     align-items: center;

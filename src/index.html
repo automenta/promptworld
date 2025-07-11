@@ -18,6 +18,7 @@
                 <!-- Projects will be listed here -->
             </ul>
             <button id="new-project-btn">New Project</button>
+            <button id="go-to-settings-btn" style="margin-top: 10px;">Settings</button>
         </section>
 
         <section id="editor-screen" style="display: none;">
@@ -36,7 +37,13 @@
 
         <section id="settings-screen" style="display: none;">
             <h2>Settings</h2>
-            <!-- Settings interface will go here -->
+            <div>
+                <label for="api-key-input">Gemini API Key:</label>
+                <input type="password" id="api-key-input" name="api-key-input" style="width: 80%; margin-bottom: 10px;">
+                <button id="save-api-key-btn">Save API Key</button>
+                <p id="api-key-status" style="margin-top: 10px;"></p>
+            </div>
+            <hr>
             <button id="back-to-home-from-settings-btn">Back to Home</button>
         </section>
     </main>
